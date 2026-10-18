@@ -338,7 +338,7 @@ media_driver_install_dir_for_target() {
     case "$1" in
         debian|ubuntu) printf '/usr/lib/aarch64-linux-gnu/dri' ;;
         fedora) printf '/usr/lib64/dri' ;;
-        arch|archarm|archlinux) printf '/usr/lib/dri' ;;
+        arch|archarm|archlinux|steamos) printf '/usr/lib/dri' ;;
         *) return 1 ;;
     esac
 }

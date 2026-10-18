@@ -168,7 +168,7 @@ RUN echo "--> [SteamOS] 预安装游戏字体..." && \
     /usr/local/sbin/install-winefonts --1 || echo "--> [跳过] 离线构建环境中跳过字体下载"
 
 # 部署游戏手柄 udev 规则与 Steam/Proton 虚拟内存优化参数
-RUN mkdir -p /etc/udev/rules.d /etc/sysctl.d /etc/security/limits.d && \
+RUN mkdir -p /etc/udev/rules.d /etc/sysctl.d && \
     cat > /etc/udev/rules.d/60-steam-input.rules <<'EOF'
 SUBSYSTEM=="usb", ATTRS{idVendor}=="28de", MODE="0660", GROUP="input"
 KERNEL=="hidraw*", ATTRS{idVendor}=="28de", MODE="0660", GROUP="input"
@@ -183,12 +183,6 @@ EOF
 RUN cat > /etc/sysctl.d/99-steam.conf <<'EOF'
 vm.max_map_count=2147483642
 fs.file-max=524288
-EOF
-RUN cat > /etc/security/limits.d/99-steam.conf <<'EOF'
-* soft nofile 1048576
-* hard nofile 1048576
-* soft memlock unlimited
-* hard memlock unlimited
 EOF
 
 # 配置桌面图标与快捷方式
@@ -299,22 +293,28 @@ UseDomains=yes
 RouteMetric=100
 EOF
 
-# 应用 Android 运行环境兼容性修复
+# 应用 Android 运行环境兼容性修复（重点针对 Systemd 和 Udev）
 RUN <<'EOF_RUN'
+# --- 1. 常规兼容性修复 ---
+# 建立 Android 网络权限组
 grep -q '^aid_inet:' /etc/group     || echo 'aid_inet:x:3003:'    >> /etc/group
 grep -q '^aid_net_raw:' /etc/group || echo 'aid_net_raw:x:3004:' >> /etc/group
 grep -q '^aid_net_admin:' /etc/group || echo 'aid_net_admin:x:3005:' >> /etc/group
 
+# 检查并创建 droidspaces-gpu 组
 getent group droidspaces-gpu >/dev/null || groupadd -g 786 -r droidspaces-gpu
+# 为 root 用户赋予访问 Android 硬件及网络的权限组
 usermod -a -G aid_inet,aid_net_raw,input,video,tty,droidspaces-gpu root || true
 usermod -a -G aid_inet,aid_net_raw,input,video,tty,wheel,droidspaces-gpu ${USERNAME} || true
 
-# 确保赋予 sudo 权限给 wheel 组
+# 确保 Arch 赋予 sudo 权限给 wheel 组
 sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /etc/sudoers
 
+# --- 2. 针对 Systemd 的特定修复 ---
 ln -sf /dev/null /etc/systemd/system/systemd-networkd-wait-online.service
 ln -sf /dev/null /etc/systemd/system/systemd-journald-audit.socket
 
+# 优化 Journald 日志配置
 cat >> /etc/systemd/journald.conf << 'EOT'
 [Journal]
 ReadKMsg=no
@@ -327,33 +327,71 @@ cat > /etc/systemd/journald.conf.d/ds-logging.conf << 'EOT'
 [Journal]
 SystemMaxUse=200M
 RuntimeMaxUse=200M
+MaxRetentionSec=7day
+MaxLevelStore=info
 EOT
 
-if [ -f /etc/security/limits.conf ]; then
-    sed -i '/# End of file/i * soft nofile 1048576\n* hard nofile 1048576' /etc/security/limits.conf
+mkdir -p /etc/systemd/system/multi-user.target.wants
+GUEST_SYSTEMD_PATH="/usr/lib/systemd/system"
+
+if [ -f "$GUEST_SYSTEMD_PATH/dbus.service" ]; then
+    ln -sf "$GUEST_SYSTEMD_PATH/dbus.service" "/etc/systemd/system/multi-user.target.wants/dbus.service"
 fi
 
-if [ -f /etc/systemd/system.conf ]; then
-    sed -i 's/^#DefaultLimitNOFILE=.*/DefaultLimitNOFILE=1048576:1048576/' /etc/systemd/system.conf
-    if ! grep -q "DefaultLimitNOFILE=1048576:1048576" /etc/systemd/system.conf; then
-        echo "DefaultLimitNOFILE=1048576:1048576" >> /etc/systemd/system.conf
-    fi
+if [ "$ENABLE_yj_ARG" = "true" ]; then
+    for service in systemd-udevd.service systemd-resolved.service systemd-networkd.service NetworkManager.service; do
+        if [ -f "$GUEST_SYSTEMD_PATH/$service" ]; then
+            ln -sf "$GUEST_SYSTEMD_PATH/$service" "/etc/systemd/system/multi-user.target.wants/$service";
+        fi
+    done
+else
+    for service in systemd-udevd.service systemd-resolved.service systemd-networkd.service NetworkManager.service; do
+        ln -sf /dev/null "/etc/systemd/system/$service"
+    done
 fi
 
-if [ -d /etc/systemd/system ]; then
-    mkdir -p /etc/systemd/system/service.d
-    cat > /etc/systemd/system/service.d/10-droidspaces-limits.conf << 'EOT'
+# 在 systemd-logind 中禁用电源键行为处理
+mkdir -p /etc/systemd/logind.conf.d
+cat > /etc/systemd/logind.conf.d/99-power-key.conf << 'EOF'
+[Login]
+HandlePowerKey=ignore
+HandleSuspendKey=ignore
+HandleHibernateKey=ignore
+HandlePowerKeyLongPress=ignore
+HandlePowerKeyLongPressHibernate=ignore
+EOF
+
+# 应用 udev 覆盖配置
+mkdir -p /etc/systemd/system/systemd-udev-trigger.service.d
+cat > /etc/systemd/system/systemd-udev-trigger.service.d/override.conf << 'EOF'
 [Service]
-LimitNOFILE=1048576
-EOT
-fi
+ExecStart=
+ExecStart=-/usr/bin/udevadm trigger --subsystem-match=usb --subsystem-match=block --subsystem-match=input --subsystem-match=tty --subsystem-match=net
+EOF
 
-for unit in systemd-udevd.service systemd-udev-trigger.service; do
-    unit_path="/lib/systemd/system/$unit"
-    [ -f "$unit_path" ] || unit_path="/usr/lib/systemd/system/$unit"
-    if [ -f "$unit_path" ]; then
+# 针对只读文件系统路径覆盖
+for unit in systemd-udevd.service systemd-udev-trigger.service systemd-udev-settle.service systemd-udevd-kernel.socket systemd-udevd-control.socket; do
+    mkdir -p "/etc/systemd/system/${unit}.d"
+    printf "[Unit]\nConditionPathIsReadWrite=\n" > "/etc/systemd/system/${unit}.d/99-readonly-fix.conf"
+done
+
+# 限制特定的网络服务
+for unit in NetworkManager.service dhcpcd.service systemd-resolved.service systemd-networkd.service; do
+    if [ -f "$GUEST_SYSTEMD_PATH/$unit" ] || [ -f "/etc/systemd/system/multi-user.target.wants/$unit" ]; then
         mkdir -p "/etc/systemd/system/${unit}.d"
-        cat << 'EOF' > "/etc/systemd/system/${unit}.d/00-droidspaces-hw-access.conf"
+        cat > "/etc/systemd/system/${unit}.d/99-netmode-limit.conf" << 'EOF'
+[Service]
+ExecCondition=
+ExecCondition=/bin/sh -c "grep -qE 'net_mode=(nat|gateway)' /run/droidspaces/container.config"
+EOF
+    fi
+done
+
+# 仅在启用硬件访问时限制 udev 服务启动
+for unit in systemd-udevd.service systemd-udev-trigger.service systemd-udev-settle.service; do
+    if [ -f "$GUEST_SYSTEMD_PATH/$unit" ] || [ -f "/etc/systemd/system/multi-user.target.wants/$unit" ]; then
+        mkdir -p "/etc/systemd/system/${unit}.d"
+        cat > "/etc/systemd/system/${unit}.d/99-hwaccess-limit.conf" << 'EOF'
 [Service]
 ExecCondition=
 ExecCondition=/bin/sh -c "grep -q 'enable_hw_access=1' /run/droidspaces/container.config"
@@ -361,6 +399,7 @@ EOF
     fi
 done
 
+# 针对 Android 环境微调日志轮转
 if [ -f /etc/logrotate.conf ]; then
     sed -i 's/^#maxsize.*/maxsize 50M/' /etc/logrotate.conf
     if ! grep -q "maxsize 50M" /etc/logrotate.conf; then

@@ -59,9 +59,14 @@ install_arch_chrome() {
         fi
     done
     pacman -S --noconfirm --needed base-devel git
-    useradd --system --create-home --home-dir /tmp/chrome-build --shell /bin/bash chrome-build
-    runuser -u chrome-build -- git clone --depth=1 \
-        https://aur.archlinux.org/google-chrome.git /tmp/chrome-build/google-chrome
+    useradd --system --create-home --home-dir /tmp/chrome-build --shell /bin/bash chrome-build 2>/dev/null || true
+    passwd -d chrome-build 2>/dev/null || true
+    chown -R chrome-build:chrome-build /tmp/chrome-build 2>/dev/null || true
+    if ! runuser -u chrome-build -- git clone --depth=1 \
+        https://aur.archlinux.org/google-chrome.git /tmp/chrome-build/google-chrome 2>/dev/null; then
+        su -s /bin/bash chrome-build -c \
+            'git clone --depth=1 https://aur.archlinux.org/google-chrome.git /tmp/chrome-build/google-chrome'
+    fi
     grep -Eq '^[[:space:]]*arch = aarch64$' /tmp/chrome-build/google-chrome/.SRCINFO
     grep -Eq '^[[:space:]]*source_aarch64 = https://dl\.google\.com/linux/chrome/deb/.+_arm64\.deb$' \
         /tmp/chrome-build/google-chrome/.SRCINFO
@@ -75,9 +80,12 @@ install_arch_chrome() {
         exit 1
     fi
     pacman -S --noconfirm --needed --asdeps $CHROME_DEPENDENCIES
-    runuser -u chrome-build -- bash -c \
+    if ! runuser -u chrome-build -- bash -c \
         'cd "$1" && makepkg --cleanbuild --clean --noconfirm' _ \
-        /tmp/chrome-build/google-chrome
+        /tmp/chrome-build/google-chrome 2>/dev/null; then
+        su -s /bin/bash chrome-build -c \
+            'cd /tmp/chrome-build/google-chrome && makepkg --cleanbuild --clean --noconfirm'
+    fi
     CHROME_PACKAGE="$(find /tmp/chrome-build/google-chrome -maxdepth 1 \
         -type f -name 'google-chrome-*.pkg.tar.*' ! -name '*.sig' -print -quit)"
     [ -n "$CHROME_PACKAGE" ]

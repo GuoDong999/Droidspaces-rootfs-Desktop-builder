@@ -34,6 +34,9 @@ export ANLAND_PRESENT_BACKEND=legacy
 export KWIN_WAYLAND_NO_IMPLICIT_SYNC=1
 export KWIN_DRM_NO_DIRECT_SCANOUT=1
 export MESA_VK_WSI_PRESENT_MODE=mailbox
+unset ENABLE_GAMESCOPE_WSI || true
+unset STEAM_USE_MANGOAPP || true
+export ENABLE_GAMESCOPE_WSI=0
 
 # 音频与显示环境变量
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"

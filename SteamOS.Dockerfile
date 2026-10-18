@@ -161,6 +161,9 @@ RUN echo "en_US.UTF-8 UTF-8" > /etc/locale.gen && \
 # 为 SteamOS RootFS 安装 Droidspaces USB Manager
 RUN /usr/local/sbin/install-droidspaces-usb-manager --user "${USERNAME}"
 
+# 禁用会导致非 Gamescope 独立环境弹窗报错的 Gamescope WSI 隐式 Vulkan 图层
+RUN rm -f /usr/share/vulkan/implicit_layer.d/*gamescope_wsi*.json /usr/share/vulkan/explicit_layer.d/*gamescope_wsi*.json 2>/dev/null || true
+
 # 预安装 Hangover Wine 与字体 (支持 x86/x64 Windows 游戏运行)
 RUN echo "--> [SteamOS] 预安装 Hangover Wine 运行环境..." && \
     /usr/local/sbin/install-hangover-wine --1 || echo "--> [跳过] 离线构建环境中跳过 Hangover 下载"

@@ -71,7 +71,7 @@ RUN apt-get update && \
     bash jq dialog coreutils file findutils grep sed gawk curl wget ca-certificates locales bash-completion udev dbus systemd-sysv systemd-resolved fastfetch \
     git nano sudo openssh-server net-tools iptables iputils-ping iproute2 dnsutils procps kmod tzdata tar gpg \
     mesa-utils vulkan-tools pulseaudio-utils zenity cabextract libevdev2 evtest pciutils usbutils xdg-utils xdg-user-dirs strace binutils \
-    qemu-user-static binfmt-support && \
+    binfmt-support && \
     /usr/local/sbin/install-desktop "$DESKTOP" && \
     # 输入法 fcitx5 (可选)
     if [ "$ENABLE_srf_ARG" = "true" ]; then \
@@ -157,12 +157,14 @@ RUN wget -qO- https://ryanfortner.github.io/box64-debs/KEY.gpg | gpg --dearmor -
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# 安装官方 Linux 原生 Steam 客户端与依赖环境
+# 安装官方 Linux 原生 Steam 客户端与依赖环境 (使用 dpkg -x 避免覆盖 usrmerge 系统软链接)
 RUN mkdir -p /tmp/steam-install && cd /tmp/steam-install && \
     (curl -fsSL --retry 3 --connect-timeout 20 "https://cdn.cloudflare.steamstatic.com/client/installer/steam.deb" -o steam.deb || \
      curl -fsSL --retry 3 --connect-timeout 20 "https://repo.steampowered.com/steam/archive/stable/steam_latest.deb" -o steam.deb) && \
-    ar x steam.deb && \
-    tar xf data.tar.xz -C / && \
+    dpkg -x steam.deb /tmp/steam-install/pkg && \
+    cp -rn /tmp/steam-install/pkg/usr/* /usr/ && \
+    mkdir -p /etc/udev/rules.d && \
+    (cp -rn /tmp/steam-install/pkg/lib/udev/rules.d/* /etc/udev/rules.d/ 2>/dev/null || true) && \
     cd / && rm -rf /tmp/steam-install
 
 # 预安装游戏通用字体

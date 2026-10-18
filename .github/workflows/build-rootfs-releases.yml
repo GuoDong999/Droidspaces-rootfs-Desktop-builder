@@ -18,6 +18,7 @@ on:
           - Arch
           - SteamOS
           - SteamOS-Debian
+          - SteamOS-Native-X11
           - all
           - all-wayland
       custom_username:

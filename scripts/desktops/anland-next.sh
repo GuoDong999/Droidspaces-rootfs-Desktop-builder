@@ -95,7 +95,7 @@ install_profile() {
     case "$ID" in
         debian|ubuntu) install_apt ;;
         fedora) install_fedora ;;
-        arch|archarm|archlinux) install_arch ;;
+        arch|archarm|archlinux|steamos) install_arch ;;
         *) echo "Anland Next 不支持当前发行版：$ID" >&2; return 1 ;;
     esac
 }

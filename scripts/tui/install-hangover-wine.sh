@@ -185,9 +185,9 @@ detect_target() {
     distro_id="${distro_id,,}"
 
     case "$distro_id" in
-        arch|archarm)
+        arch|archarm|steamos)
             TARGET=arch
-            TARGET_LABEL='Arch Linux'
+            TARGET_LABEL='SteamOS / Arch Linux'
             PACKAGE_KIND=arch
             ARCHIVE_SUFFIX='-aarch64.tar.gz'
             ;;

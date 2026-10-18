@@ -180,7 +180,7 @@ detect_target() {
     local system_name="${PRETTY_NAME:-$distro_id${version_id:+ $version_id}}"
 
     case "$distro_id" in
-        arch|archarm|archlinux)
+        arch|archarm|archlinux|steamos)
             TARGET="Arch Linux"
             PACKAGE_TYPE="pkg.tar.*"
             MANIFEST_TARGET="arch"

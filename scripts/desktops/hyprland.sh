@@ -70,7 +70,7 @@ install_profile() {
     case "$ID:${VERSION_ID:-}" in
         debian:13*|ubuntu:26.04*) install_minimal_deb ;;
         fedora:43*|fedora:44*) install_minimal_fedora ;;
-        arch:*|archarm:*|archlinux:*) install_minimal_arch ;;
+        arch:*|archarm:*|archlinux:*|steamos:*) install_minimal_arch ;;
         *) echo "$desktop 不支持当前发行版：$ID $VERSION_ID" >&2; return 1 ;;
     esac
 }

@@ -334,7 +334,7 @@ detect_target() {
     local system_name="${PRETTY_NAME:-$distro_id${version_id:+ $version_id}}"
 
     case "$distro_id" in
-        arch|archarm)
+        arch|archarm|steamos)
             TARGET="Arch Linux"
             PACKAGE_TYPE="pkg.tar.*"
             ARCHIVE_PREFIX="anland-kde-arch-kwin-"

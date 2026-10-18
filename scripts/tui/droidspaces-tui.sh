@@ -525,7 +525,7 @@ is_arm64() {
 
 supports_common_packages() {
     case "$SYSTEM_ID:$SYSTEM_VERSION" in
-        arch:*|archarm:*|archlinux:*|debian:13*|ubuntu:24.04*|ubuntu:25.10*|ubuntu:26.04*|fedora:43*|fedora:44*)
+        arch:*|archarm:*|archlinux:*|steamos:*|debian:13*|ubuntu:24.04*|ubuntu:25.10*|ubuntu:26.04*|fedora:43*|fedora:44*)
             return 0
             ;;
         *) return 1 ;;
@@ -543,26 +543,26 @@ component_supported() {
                 supports_common_packages
             else
                 case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                    arch:*|archarm:*|debian:13*|ubuntu:24.04*|ubuntu:25.10*|ubuntu:26.04*|fedora:43*|fedora:44*) return 0 ;;
+                    arch:*|archarm:*|steamos:*|debian:13*|ubuntu:24.04*|ubuntu:25.10*|ubuntu:26.04*|fedora:43*|fedora:44*) return 0 ;;
                     *) return 1 ;;
                 esac
             fi
             ;;
         kde)
             case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                arch:*|archarm:*|debian:13*|ubuntu:26.04*|fedora:43*|fedora:44*) return 0 ;;
+                arch:*|archarm:*|steamos:*|debian:13*|ubuntu:26.04*|fedora:43*|fedora:44*) return 0 ;;
                 *) return 1 ;;
             esac
             ;;
         niri|gnome|hyprland|mango|denial)
             case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                debian:13*|ubuntu:26.04*|fedora:43*|fedora:44*|arch:*|archarm:*|archlinux:*) return 0 ;;
+                debian:13*|ubuntu:26.04*|fedora:43*|fedora:44*|arch:*|archarm:*|archlinux:*|steamos:*) return 0 ;;
                 *) return 1 ;;
             esac
             ;;
         anland-next)
             case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                arch:*|archarm:*|archlinux:*|debian:13*|ubuntu:26.04*|fedora:43*|fedora:44*) return 0 ;;
+                arch:*|archarm:*|archlinux:*|steamos:*|debian:13*|ubuntu:26.04*|fedora:43*|fedora:44*) return 0 ;;
                 *) return 1 ;;
             esac
             ;;
@@ -610,7 +610,7 @@ installed_package_version() {
                 return 0
             done
             ;;
-        arch|archarm|archlinux)
+        arch|archarm|archlinux|steamos)
             command -v pacman >/dev/null 2>&1 || return 1
             for package in "$@"; do
                 output="$(pacman -Q "$package" 2>/dev/null)" || continue
@@ -633,7 +633,7 @@ detected_component_package_version() {
                     version="$(installed_package_version mesa-vulkan-drivers libglx-mesa0 libegl-mesa0)" || true
                     ;;
                 fedora) version="$(installed_package_version mesa-dri-drivers)" || true ;;
-                arch|archarm|archlinux) version="$(installed_package_version mesa)" || true ;;
+                arch|archarm|archlinux|steamos) version="$(installed_package_version mesa)" || true ;;
             esac
             ;;
         hangover)
@@ -692,7 +692,7 @@ managed_component_installed() {
             case "$SYSTEM_ID" in
                 debian|ubuntu) [[ -f /etc/apt/preferences.d/hold-anland-package ]] ;;
                 fedora) grep -Fqx '# BEGIN install-mesa package holds' /etc/dnf/dnf.conf 2>/dev/null ;;
-                arch|archarm|archlinux)
+                arch|archarm|archlinux|steamos)
                     grep -Fqx '# BEGIN install-mesa package holds' /etc/pacman.conf 2>/dev/null
                     ;;
                 *) return 1 ;;
@@ -706,7 +706,7 @@ managed_component_installed() {
             case "$SYSTEM_ID" in
                 debian|ubuntu) [[ -s /var/lib/anland-kde/apt-holds ]] ;;
                 fedora) grep -Fqx '# BEGIN anland-kde package holds' /etc/dnf/dnf.conf 2>/dev/null ;;
-                arch|archarm|archlinux)
+                arch|archarm|archlinux|steamos)
                     grep -Eq '^[[:space:]]*IgnorePkg[[:space:]]*=.*(^|[[:space:]])kwin([[:space:]]|$)' \
                         /etc/pacman.conf 2>/dev/null
                     ;;
@@ -725,7 +725,7 @@ managed_component_installed() {
             case "$SYSTEM_ID" in
                 debian|ubuntu) [[ -s /var/lib/anland-gnome/apt-holds ]] ;;
                 fedora) grep -Fqx '# BEGIN anland-gnome package holds' /etc/dnf/dnf.conf 2>/dev/null ;;
-                arch|archarm|archlinux)
+                arch|archarm|archlinux|steamos)
                     [[ -s /var/lib/anland-gnome/pacman-packages ]] || \
                         grep -Eq '^[[:space:]]*IgnorePkg[[:space:]]*=.*(^|[[:space:]])mutter([[:space:]]|$)' \
                             /etc/pacman.conf 2>/dev/null
@@ -773,7 +773,7 @@ component_release_parts() {
             tag="mesa-for-android-container"
             prefix="mesa-for-android-container_"
             case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                arch:*|archarm:*|archlinux:*) suffix="_archlinux_arm64.tar" ;;
+                arch:*|archarm:*|archlinux:*|steamos:*) suffix="_archlinux_arm64.tar" ;;
                 debian:13*) suffix="_debian_trixie_arm64.tar.gz" ;;
                 ubuntu:24.04*) suffix="_ubuntu_noble_arm64.tar.gz" ;;
                 ubuntu:25.10*) suffix="_ubuntu_questing_arm64.tar.gz" ;;
@@ -786,7 +786,7 @@ component_release_parts() {
         hangover)
             tag="hangover-wine-packages"
             case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                arch:*|archarm:*) prefix="hangover-wine-arch-"; suffix="-aarch64.tar.gz" ;;
+                arch:*|archarm:*|steamos:*) prefix="hangover-wine-arch-"; suffix="-aarch64.tar.gz" ;;
                 debian:13*) prefix="hangover-wine-debian13-"; suffix="-arm64.tar.gz" ;;
                 ubuntu:24.04*) prefix="hangover-wine-ubuntu2404-"; suffix="-arm64.tar.gz" ;;
                 ubuntu:25.10*) prefix="hangover-wine-ubuntu2510-"; suffix="-arm64.tar.gz" ;;
@@ -804,7 +804,7 @@ component_release_parts() {
         kde)
             tag="anland-kde-packages"
             case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                arch:*|archarm:*) prefix="anland-kde-arch-kwin-"; suffix="-aarch64.tar.gz" ;;
+                arch:*|archarm:*|steamos:*) prefix="anland-kde-arch-kwin-"; suffix="-aarch64.tar.gz" ;;
                 debian:13*) prefix="anland-kde-debian13-kwin-"; suffix="-arm64.tar.gz" ;;
                 ubuntu:26.04*) prefix="anland-kde-ubuntu2604-kwin-"; suffix="-arm64.tar.gz" ;;
                 fedora:43*) prefix="anland-kde-fedora43-kwin-"; suffix="-aarch64.tar.gz" ;;
@@ -816,7 +816,7 @@ component_release_parts() {
             is_arm64 || return 1
             tag="anland-$component-packages"
             case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                arch:*|archarm:*|archlinux:*) prefix="anland-$component-arch-"; suffix="-aarch64.tar.gz" ;;
+                arch:*|archarm:*|archlinux:*|steamos:*) prefix="anland-$component-arch-"; suffix="-aarch64.tar.gz" ;;
                 debian:13*) prefix="anland-$component-debian13-"; suffix="-arm64.tar.gz" ;;
                 ubuntu:26.04*) prefix="anland-$component-ubuntu2604-"; suffix="-arm64.tar.gz" ;;
                 fedora:43*) prefix="anland-$component-fedora43-"; suffix="-aarch64.tar.gz" ;;
@@ -827,7 +827,7 @@ component_release_parts() {
         gnome)
             tag="anland-gnome-packages"
             case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                arch:*|archarm:*|archlinux:*) prefix="anland-gnome-arch-mutter-"; suffix="-aarch64.tar.gz" ;;
+                arch:*|archarm:*|archlinux:*|steamos:*) prefix="anland-gnome-arch-mutter-"; suffix="-aarch64.tar.gz" ;;
                 debian:13*) prefix="anland-gnome-debian13-mutter-"; suffix="-arm64.tar.gz" ;;
                 ubuntu:26.04*) prefix="anland-gnome-ubuntu2604-mutter-"; suffix="-arm64.tar.gz" ;;
                 fedora:43*) prefix="anland-gnome-fedora43-mutter-"; suffix="-aarch64.tar.gz" ;;
@@ -838,7 +838,7 @@ component_release_parts() {
         anland-next)
             tag="anland-session-packages"
             case "$SYSTEM_ID:$SYSTEM_VERSION" in
-                arch:*|archarm:*|archlinux:*)
+                arch:*|archarm:*|archlinux:*|steamos:*)
                     prefix="anland-session-arch-anland-session-"
                     suffix="-aarch64.pkg.tar.zst"
                     ;;

@@ -23,7 +23,7 @@ configure_environment() {
         return 1
     }
     case "$ID" in
-        arch|archarm|archlinux)
+        arch|archarm|archlinux|steamos)
             assignments+=(XWAYLAND_GBM_DEVICE=/dev/dri/renderD128)
             ;;
     esac
@@ -108,7 +108,7 @@ install_profile() {
     case "$ID" in
         debian|ubuntu) install_apt ;;
         fedora) install_fedora ;;
-        arch|archarm|archlinux) install_arch ;;
+        arch|archarm|archlinux|steamos) install_arch ;;
         *) echo "KDE mobile 不支持当前发行版：$ID" >&2; return 1 ;;
     esac
 }

@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Steam Game Mode
+Name[zh_CN]=Steam 掌机游戏模式
+GenericName=Gaming Console Mode
+Comment=Launch Steam Deck Big Picture Gamepad UI
+Exec=/usr/local/bin/steamos-session
+Icon=steam
+Terminal=false
+Type=Application
+Categories=Game;
+EOF

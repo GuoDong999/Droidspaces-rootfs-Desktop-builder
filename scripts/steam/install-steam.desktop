@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Install / Update Steam
+Name[zh_CN]=安装或更新 Steam 环境
+Comment=Install Steam, Hangover Wine and Gaming Runtimes
+Exec=sudo /usr/local/sbin/install-steam
+Icon=steam
+Terminal=true
+Type=Application
+Categories=Game;System;
+EOF

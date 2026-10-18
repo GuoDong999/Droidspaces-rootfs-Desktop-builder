@@ -106,7 +106,7 @@ install_chrome() {
     case "${ID:-}" in
         debian|ubuntu) install_debian_chrome ;;
         fedora) install_fedora_chrome ;;
-        arch|archarm|archlinux) install_arch_chrome ;;
+        arch|archarm|archlinux|steamos) install_arch_chrome ;;
         *)
             echo "不支持的 Chrome 发行版：${ID:-unknown}" >&2
             exit 1

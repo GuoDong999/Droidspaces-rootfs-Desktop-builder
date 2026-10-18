@@ -24,12 +24,16 @@ WIDTH="${STEAM_SCREEN_WIDTH:-1280}"
 HEIGHT="${STEAM_SCREEN_HEIGHT:-800}"
 REFRESH="${STEAM_SCREEN_REFRESH:-60}"
 
-echo "--> [SteamOS] 正在启动 Steam Deck 掌机大屏幕模式..."
+echo "--> [SteamOS] 正在启动 Steam Deck 掌机大屏幕模式 (Gamepad UI)..."
 
+# 尝试启动 Gamescope，若容器环境无 KMS DRM 则平滑回退直接启动 Steam Gamepad UI
 if command -v gamescope >/dev/null 2>&1; then
-    echo "--> [SteamOS] 启用 Gamescope 合成器 ($WIDTH x $HEIGHT @ ${REFRESH}Hz)"
-    exec gamescope -W "$WIDTH" -H "$HEIGHT" -r "$REFRESH" -e -- \
-        /usr/local/bin/steam -gamepadui -steamos3 "$@"
+    echo "--> [SteamOS] 尝试启用 Gamescope 合成器 ($WIDTH x $HEIGHT @ ${REFRESH}Hz)..."
+    gamescope -W "$WIDTH" -H "$HEIGHT" -r "$REFRESH" -e -- \
+        /usr/local/bin/steam -gamepadui -steamos3 "$@" 2>/dev/null || {
+            echo "--> [SteamOS] Gamescope 退出，回退到原生直接运行 Steam Gamepad UI"
+            exec /usr/local/bin/steam -gamepadui -steamos3 "$@"
+        }
 else
     echo "--> [SteamOS] Gamescope 未就绪，直接启动 Steam Gamepad UI"
     exec /usr/local/bin/steam -gamepadui -steamos3 "$@"

@@ -134,6 +134,8 @@ EOF
         cat > "$rootfs/home/$username/.config/kwinrc" <<'EOF'
 [Compositing]
 Enabled=true
+GLCore=true
+LatencyPolicy=High
 EOF
     fi
 fi

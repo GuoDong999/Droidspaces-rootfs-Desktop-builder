@@ -80,7 +80,7 @@ RUN chmod +x /usr/local/sbin/install-anland-* /usr/local/sbin/install-mesa /usr/
     gamescope mesa-utils vulkan-icd-loader vulkan-tools vkmark \
     sdl2 sdl2_image sdl2_mixer sdl2_ttf openal \
     pipewire pipewire-alsa pipewire-pulse wireplumber libpulse alsa-lib alsa-utils \
-    libevdev evtest cabextract zenity pciutils usbutils xdg-utils xdg-user-dirs strace && \
+    libevdev evtest cabextract zenity pciutils usbutils xdg-utils xdg-user-dirs strace binutils && \
     /usr/local/sbin/install-desktop "$DESKTOP" && \
     # 输入法 fcitx5 (可选)
     if [ "$ENABLE_srf_ARG" = "true" ]; then \
@@ -185,12 +185,19 @@ vm.max_map_count=2147483642
 fs.file-max=524288
 EOF
 
-# 配置桌面图标与快捷方式
-RUN mkdir -p /home/${USERNAME}/Desktop /etc/skel/Desktop && \
+# 预下载 Steam 官方 Windows 安装包（用于 Hangover Wine 一键初始化）
+RUN mkdir -p /usr/local/share/steam && \
+    (curl -fsSL --retry 3 --connect-timeout 20 "https://cdn.fastly.steamstatic.com/client/installer/SteamSetup.exe" -o /usr/local/share/steam/SteamSetup.exe || \
+     curl -fsSL --retry 3 --connect-timeout 20 "https://media.steampowered.com/client/installer/SteamSetup.exe" -o /usr/local/share/steam/SteamSetup.exe || true)
+
+# 配置桌面图标、快捷方式与 Steam Deck 大屏模式自动启动
+RUN mkdir -p /home/${USERNAME}/Desktop /home/${USERNAME}/.config/autostart /etc/skel/Desktop /etc/skel/.config/autostart && \
     cp -f /usr/share/applications/steam.desktop /home/${USERNAME}/Desktop/ && \
     cp -f /usr/share/applications/steam-gamepadui.desktop /home/${USERNAME}/Desktop/ && \
     cp -f /usr/share/applications/install-steam.desktop /home/${USERNAME}/Desktop/ && \
+    cp -f /usr/share/applications/steam-gamepadui.desktop /home/${USERNAME}/.config/autostart/steam-gamepadui.desktop && \
     cp -f /usr/share/applications/steam*.desktop /etc/skel/Desktop/ 2>/dev/null || true && \
+    cp -f /usr/share/applications/steam-gamepadui.desktop /etc/skel/.config/autostart/ 2>/dev/null || true && \
     chmod +x /home/${USERNAME}/Desktop/*.desktop 2>/dev/null || true
 
 # 为 droidspaces 的 su/su -l 入口建立完整的 systemd 用户会话。
@@ -216,6 +223,8 @@ RUN if [ "$ENABLE_mesa_ARG" = "true" ] && [ "$DISPLAY_BACKEND" = "anland-wayland
         echo 'GALLIUM_DRIVER=kgsl' >> /etc/environment; \
         echo 'FD_FORCE_KGSL=1' >> /etc/environment; \
         echo 'TURNIP_KMD=kgsl' >> /etc/environment; \
+        echo 'TU_DEBUG=noconform' >> /etc/environment; \
+        echo 'FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1' >> /etc/environment; \
     fi
 
 RUN if [ "$ENABLE_8gen2_wayland_ARG" = "true" ]; then \

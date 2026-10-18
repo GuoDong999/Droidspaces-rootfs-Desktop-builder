@@ -17,6 +17,7 @@ on:
           - Fedora-44
           - Arch
           - SteamOS
+          - SteamOS-Debian
           - all
           - all-wayland
       custom_username:

@@ -28,6 +28,13 @@ export WINEESYNC=1
 export WINEFSYNC=1
 export DXVK_ASYNC=1
 
+# 防屏闪与同步优化变量
+export ANLAND_SKIP_IMPLICIT_SYNC_WAIT=1
+export ANLAND_PRESENT_BACKEND=legacy
+export KWIN_WAYLAND_NO_IMPLICIT_SYNC=1
+export KWIN_DRM_NO_DIRECT_SCANOUT=1
+export MESA_VK_WSI_PRESENT_MODE=mailbox
+
 # 音频与显示环境变量
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 mkdir -p "$XDG_RUNTIME_DIR" /dev/shm 2>/dev/null || true
@@ -44,50 +51,76 @@ if [ -n "${WAYLAND_DISPLAY:-}" ] || [ -e "${XDG_RUNTIME_DIR}/wayland-0" ] || [ -
     export SDL_VIDEODRIVER="${SDL_VIDEODRIVER:-wayland}"
 fi
 
-# 3. 定位 Steam 运行文件
-WINE_STEAM="${HOME}/.wine/drive_c/Program Files (x86)/Steam/Steam.exe"
+# 3. 增强的 Steam 定位函数 (不区分大小写，兼顾多用户与多目录结构)
+find_wine_steam() {
+    local candidate
+    local prefixes=()
+    [ -n "${WINEPREFIX:-}" ] && prefixes+=("$WINEPREFIX")
+    prefixes+=("${HOME}/.wine")
+
+    # 如果当前用户下未找到，也搜索 /home 下其他普通用户目录
+    for udir in /home/*; do
+        [ -d "$udir/.wine" ] && prefixes+=("$udir/.wine")
+    done
+
+    for prefix in "${prefixes[@]}"; do
+        [ -d "$prefix" ] || continue
+        for sub in "drive_c/Program Files (x86)/Steam" \
+                   "drive_c/Program Files/Steam" \
+                   "drive_c/Steam"; do
+            for bin in "Steam.exe" "steam.exe"; do
+                candidate="$prefix/$sub/$bin"
+                if [ -f "$candidate" ]; then
+                    echo "$candidate"
+                    return 0
+                fi
+            done
+        done
+        # 大小写不敏感深度查找
+        if [ -d "$prefix/drive_c" ]; then
+            candidate="$(find "$prefix/drive_c" -maxdepth 5 -iname "steam.exe" 2>/dev/null | head -n 1 || true)"
+            if [ -n "$candidate" ] && [ -f "$candidate" ]; then
+                echo "$candidate"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
 STEAM_USER_DIR="${HOME}/.local/share/Steam"
 STEAM_SYS_DIR="/usr/local/lib/steam"
+WINE_STEAM="$(find_wine_steam || true)"
 
-# 若未找到 Steam.exe，搜索其他可能安装目录
-if [ ! -f "$WINE_STEAM" ] && [ -d "${HOME}/.wine/drive_c" ]; then
-    found_steam="$(find "${HOME}/.wine/drive_c" -name "Steam.exe" 2>/dev/null | head -n 1 || true)"
-    if [ -n "$found_steam" ]; then
-        WINE_STEAM="$found_steam"
-    fi
-fi
-
-# 4. 若未安装 Steam，提示并引导自动安装
-if [ ! -f "$WINE_STEAM" ] && [ ! -x "${STEAM_USER_DIR}/steam.sh" ] && [ ! -x "${STEAM_SYS_DIR}/steam" ]; then
-    echo "--> [SteamOS] 检测到尚未安装 Steam 客户端，准备初始化安装..."
-
-    # 优先使用图形向导提示
-    if { [ -n "${WAYLAND_DISPLAY:-}" ] || [ -n "${DISPLAY:-}" ]; } && command -v zenity >/dev/null 2>&1; then
-        if zenity --question --title="SteamOS" \
-            --text="检测到尚未安装 Steam 客户端。\n\n是否立即启动自动化安装程序配置 Steam 环境？" \
-            --ok-label="立即安装" --cancel-label="取消" --width=360 2>/dev/null; then
-            /usr/local/sbin/install-steam
-            # 重新检测 Steam.exe 是否已生成
-            if [ ! -f "$WINE_STEAM" ] && [ -d "${HOME}/.wine/drive_c" ]; then
-                WINE_STEAM="$(find "${HOME}/.wine/drive_c" -name "Steam.exe" 2>/dev/null | head -n 1 || true)"
-            fi
-        else
-            echo "--> 用户取消了 Steam 安装"
-            exit 0
-        fi
+# 4. 检查是否正在运行或更新中
+if pgrep -if "steam.exe" >/dev/null 2>&1; then
+    echo "--> [SteamOS] 检测到 Steam 进程已在运行中..."
+    if [ -n "$WINE_STEAM" ] && [ -f "$WINE_STEAM" ]; then
+        exec wine "$WINE_STEAM" -gamepadui -steamos3 -fullscreen "$@"
     else
-        echo "=========================================================="
-        echo " [SteamOS] 尚未安装完整的 Steam 客户端"
-        echo " 正在为您启动一键安装程序..."
-        echo "=========================================================="
-        /usr/local/sbin/install-steam
-        if [ ! -f "$WINE_STEAM" ] && [ -d "${HOME}/.wine/drive_c" ]; then
-            WINE_STEAM="$(find "${HOME}/.wine/drive_c" -name "Steam.exe" 2>/dev/null | head -n 1 || true)"
+        # 正在安装向导或后台更新解压阶段
+        if command -v zenity >/dev/null 2>&1 && [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
+            zenity --info --title="SteamOS" --text="Steam 正在后台更新或初始化中，请稍候..." --timeout=3 2>/dev/null || true
         fi
+        exit 0
     fi
 fi
 
-# 5. 容器内 Chromium 内核核心参数适配
+# 5. 若未安装 Steam，自动触发初始化安装
+if [ -z "$WINE_STEAM" ] && [ ! -x "${STEAM_USER_DIR}/steam.sh" ] && [ ! -x "${STEAM_SYS_DIR}/steam" ]; then
+    echo "--> [SteamOS] 检测到尚未初始化 Steam 客户端，正在启动自动化环境部署..."
+
+    if command -v zenity >/dev/null 2>&1 && [ -n "${WAYLAND_DISPLAY:-}${DISPLAY:-}" ]; then
+        zenity --info --title="SteamOS" \
+            --text="正在自动配置 Steam 掌机运行环境...\n首次运行将自动部署 Steam 客户端，请稍候。" \
+            --timeout=4 2>/dev/null || true
+    fi
+
+    /usr/local/sbin/install-steam || true
+    WINE_STEAM="$(find_wine_steam || true)"
+fi
+
+# 6. CEF 优化参数
 cef_args=(
     -no-cef-sandbox
     -cef-disable-dev-shm-usage
@@ -98,21 +131,21 @@ cef_args=(
     -cef-enable-gpu-rasterization
 )
 
-# 6. 优先通过 Hangover Wine 启动 Windows Steam
-if [ -f "$WINE_STEAM" ] && command -v wine >/dev/null 2>&1; then
-    echo "--> [SteamOS] 正在通过 Hangover Wine 启动 Steam..."
-    export WINEPREFIX="${HOME}/.wine"
-    exec wine "$WINE_STEAM" "${cef_args[@]}" "$@"
+# 7. 启动 Steam 客户端 (优先通过 Hangover Wine 启动 Steam Deck 大屏模式)
+if [ -n "$WINE_STEAM" ] && [ -f "$WINE_STEAM" ] && command -v wine >/dev/null 2>&1; then
+    echo "--> [SteamOS] 正在通过 Hangover Wine 启动 Steam Deck 掌机大屏模式..."
+    export WINEPREFIX="${WINEPREFIX:-${HOME}/.wine}"
+    exec wine "$WINE_STEAM" -gamepadui -steamos3 -fullscreen "${cef_args[@]}" "$@"
 fi
 
-# 7. 若有 Linux 本地客户端
+# 8. 若有 Linux 本地客户端
 if [ -x "${STEAM_USER_DIR}/steam.sh" ]; then
-    exec "${STEAM_USER_DIR}/steam.sh" "${cef_args[@]}" "$@"
+    exec "${STEAM_USER_DIR}/steam.sh" -gamepadui -steamos3 "${cef_args[@]}" "$@"
 elif [ -x "${STEAM_SYS_DIR}/steam" ]; then
-    exec "${STEAM_SYS_DIR}/steam" "${cef_args[@]}" "$@"
+    exec "${STEAM_SYS_DIR}/steam" -gamepadui -steamos3 "${cef_args[@]}" "$@"
 elif command -v steam >/dev/null 2>&1 && [ "$(command -v steam)" != "/usr/local/bin/steam" ]; then
-    exec "$(command -v steam)" "${cef_args[@]}" "$@"
+    exec "$(command -v steam)" -gamepadui -steamos3 "${cef_args[@]}" "$@"
 fi
 
-echo "--> [SteamOS] 错误：无法启动 Steam，请运行 'install-steam' 重新安装！" >&2
+echo "--> [SteamOS] 错误：无法启动 Steam，请在终端运行 'install-steam' 重新安装！" >&2
 exit 1

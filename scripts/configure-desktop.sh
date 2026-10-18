@@ -125,6 +125,7 @@ fi
 
 if [[ "$desktop" == kde ]]; then
     install -d -m 0755 "$rootfs/home/$username/.config"
+    install -d -m 0755 "$rootfs/etc/skel/.config"
     if [[ "$backend" == x11 ]]; then
         cat > "$rootfs/home/$username/.config/kwinrc" <<'EOF'
 [Compositing]
@@ -134,10 +135,13 @@ EOF
         cat > "$rootfs/home/$username/.config/kwinrc" <<'EOF'
 [Compositing]
 Enabled=true
-GLCore=true
-LatencyPolicy=High
+LatencyPolicy=Smooth
+WindowsBlockCompositing=false
+MaxFPS=60
+RefreshRate=60
 EOF
     fi
+    cp -f "$rootfs/home/$username/.config/kwinrc" "$rootfs/etc/skel/.config/kwinrc" 2>/dev/null || true
 fi
 
 if [[ -z "$rootfs" ]]; then

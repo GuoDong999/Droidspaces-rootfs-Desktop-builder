@@ -42,16 +42,35 @@ fi
 show_gui_info() {
     local text="$1"
     if [ "$HAS_GUI" = true ] && command -v zenity >/dev/null 2>&1; then
-        zenity --info --title="SteamOS" --text="$text" --width=350 2>/dev/null || true
+        zenity --info --title="SteamOS" --text="$text" --width=380 2>/dev/null || true
     fi
 }
 
 show_gui_error() {
     local text="$1"
     if [ "$HAS_GUI" = true ] && command -v zenity >/dev/null 2>&1; then
-        zenity --error --title="SteamOS" --text="$text" --width=350 2>/dev/null || true
+        zenity --error --title="SteamOS" --text="$text" --width=380 2>/dev/null || true
     fi
 }
+
+# 检查是否已有 Steam 运行或后台更新
+if pgrep -if "steam.exe" >/dev/null 2>&1; then
+    log "Steam 正在运行或在后台更新中，无需重复安装。" \
+        "Steam is already running or updating, skipping reinstallation."
+    show_gui_info "Steam 正在运行或在后台更新中，无需重复执行安装！\n\n首次下载更新组件（约 300MB）完成后将自动进入掌机模式。"
+    exit 0
+fi
+
+# 检查是否已安装 Steam (不区分大小写查找)
+if [ -d "${TARGET_HOME}/.wine/drive_c" ]; then
+    found_existing="$(find "${TARGET_HOME}/.wine/drive_c" -maxdepth 5 -iname "steam.exe" 2>/dev/null | head -n 1 || true)"
+    if [ -n "$found_existing" ] && [ -f "$found_existing" ]; then
+        log "检测到 Steam 已经安装: $found_existing" \
+            "Steam is already installed: $found_existing"
+        show_gui_info "Steam 已经安装就绪！\n\n位置: $found_existing\n您现在可以直接启动 Steam 掌机大屏模式。"
+        exit 0
+    fi
+fi
 
 log "正在为用户 ${TARGET_USER} 配置 Steam 与游戏运行环境..." \
     "Configuring Steam and gaming runtime environment for user ${TARGET_USER}..."
@@ -93,8 +112,6 @@ fi
 
 # 4. 获取或定位 Steam 官方 Windows 安装包
 INSTALLER="/usr/local/share/steam/SteamSetup.exe"
-TEMP_INSTALLER=""
-
 if [ ! -f "$INSTALLER" ]; then
     INSTALLER="${TARGET_HOME}/.cache/SteamSetup.exe"
     mkdir -p "$(dirname "$INSTALLER")"
@@ -129,30 +146,34 @@ if [ ! -d "${WINEPREFIX}/drive_c" ]; then
 fi
 
 # 静默安装 Steam（/S 参数为 NSIS 标准静默安装）
-log "正在静默安装 Steam..." "Silently installing Steam..."
+log "正在静默安装 Steam 核心运行环境..." "Silently installing Steam core runtime..."
 wine "$INSTALLER" /S || true
 
-# 等待安装完成
-for i in {1..30}; do
-    if [ -f "${STEAM_DIR}/Steam.exe" ]; then
+# 循环等待 steam.exe 释放完成（最多等待 90 秒）
+found_steam=""
+for i in {1..90}; do
+    for f in "${STEAM_DIR}/Steam.exe" "${STEAM_DIR}/steam.exe" \
+             "${TARGET_HOME}/.wine/drive_c/Program Files/Steam/Steam.exe" \
+             "${TARGET_HOME}/.wine/drive_c/Program Files/Steam/steam.exe"; do
+        if [ -f "$f" ]; then
+            found_steam="$f"
+            break 2
+        fi
+    done
+    found_steam="$(find "${WINEPREFIX}/drive_c" -maxdepth 5 -iname "steam.exe" 2>/dev/null | head -n 1 || true)"
+    if [ -n "$found_steam" ] && [ -f "$found_steam" ]; then
         break
     fi
     sleep 1
 done
 
-if [ ! -f "${STEAM_DIR}/Steam.exe" ]; then
-    # 若静默安装路径不同，尝试查找
-    found_steam="$(find "${WINEPREFIX}/drive_c" -name "Steam.exe" 2>/dev/null | head -n 1 || true)"
-    if [ -n "$found_steam" ]; then
-        STEAM_DIR="$(dirname "$found_steam")"
-    fi
-fi
-
-if [ -f "${STEAM_DIR}/Steam.exe" ]; then
-    log "Steam.exe 已就绪: ${STEAM_DIR}/Steam.exe" "Steam.exe ready: ${STEAM_DIR}/Steam.exe"
+if [ -n "$found_steam" ] && [ -f "$found_steam" ]; then
+    log "Steam 核心文件已就绪: $found_steam" "Steam core binary ready: $found_steam"
+    # 首次启动后台静默更新
+    wine "$found_steam" -silent &
 else
     # 交互式启动一次安装向导兜底
-    log "正在启动 Steam 图形安装向导..." "Launching Steam graphical setup wizard..."
+    log "启动 Steam 图形安装向导..." "Launching Steam graphical setup wizard..."
     wine "$INSTALLER" || true
 fi
 
@@ -176,9 +197,12 @@ fs.file-max=524288
 EOF_SYSCTL
 fi
 
-# 7. 刷新快捷方式
+# 7. 全局与用户快捷方式部署 (确保全局自启动生效)
+mkdir -p /etc/xdg/autostart /etc/skel/.config/autostart "${TARGET_HOME}/.config/autostart" "$DESKTOP_DIR" 2>/dev/null || true
 cp -f /usr/share/applications/steam.desktop "$DESKTOP_DIR/" 2>/dev/null || true
 cp -f /usr/share/applications/steam-gamepadui.desktop "$DESKTOP_DIR/" 2>/dev/null || true
+cp -f /usr/share/applications/steam-gamepadui.desktop /etc/xdg/autostart/ 2>/dev/null || true
+cp -f /usr/share/applications/steam-gamepadui.desktop /etc/skel/.config/autostart/ 2>/dev/null || true
 cp -f /usr/share/applications/steam-gamepadui.desktop "${TARGET_HOME}/.config/autostart/" 2>/dev/null || true
 chmod +x "$DESKTOP_DIR"/*.desktop 2>/dev/null || true
 
@@ -189,11 +213,11 @@ fi
 
 log "==================================================================" \
     "=================================================================="
-log "Steam 与 SteamOS 游戏运行环境安装完成！" \
-    "Steam and SteamOS gaming runtime installation complete!"
-log "您可以在桌面直接启动 Steam 或 Steam Deck 大屏模式。" \
-    "You can now launch Steam or Steam Deck Gamepad UI directly."
+log "Steam 与 SteamOS 游戏运行环境配置完成！" \
+    "Steam and SteamOS gaming runtime configuration complete!"
+log "Steam 首次启动正在后台自动更新组件（约 300MB）。" \
+    "Steam is updating runtime packages in the background (approx 300MB)."
 log "==================================================================" \
     "=================================================================="
 
-show_gui_info "Steam 与 SteamOS 游戏运行环境安装完成！\n\n您现在可以在桌面上点击 Steam 或 Steam Deck 大屏模式启动。"
+show_gui_info "Steam 核心环境已部署完成！\n\n首次启动 Steam 正在自动更新组件（约 300MB）。\n请耐心等待更新进度条完成，随后即可畅享与 Steam Deck 一致的掌机大屏模式！"

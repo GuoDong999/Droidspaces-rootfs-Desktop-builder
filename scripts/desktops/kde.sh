@@ -21,10 +21,6 @@ configure_environment() {
                 ANLAND_SOCKET=/run/display.sock
                 ANLAND_DRM_DEVICE=/dev/dri/renderD128
                 ANLAND_SKIP_IMPLICIT_SYNC_WAIT=1
-                ANLAND_PRESENT_BACKEND=legacy
-                KWIN_WAYLAND_NO_IMPLICIT_SYNC=1
-                KWIN_DRM_NO_DIRECT_SCANOUT=1
-                MESA_VK_WSI_PRESENT_MODE=mailbox
             )
             case "$ID" in
                 arch|archarm|archlinux|steamos)

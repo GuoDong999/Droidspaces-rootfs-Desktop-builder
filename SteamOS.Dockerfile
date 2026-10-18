@@ -226,14 +226,7 @@ RUN if [ "$ENABLE_mesa_ARG" = "true" ] && [ "$DISPLAY_BACKEND" = "anland-wayland
         echo 'MESA_LOADER_DRIVER_OVERRIDE=kgsl' >> /etc/environment; \
         echo 'GALLIUM_DRIVER=kgsl' >> /etc/environment; \
         echo 'FD_FORCE_KGSL=1' >> /etc/environment; \
-        echo 'TURNIP_KMD=kgsl' >> /etc/environment; \
-        echo 'TU_DEBUG=noconform' >> /etc/environment; \
-        echo 'FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1' >> /etc/environment; \
         echo 'ANLAND_SKIP_IMPLICIT_SYNC_WAIT=1' >> /etc/environment; \
-        echo 'ANLAND_PRESENT_BACKEND=legacy' >> /etc/environment; \
-        echo 'KWIN_WAYLAND_NO_IMPLICIT_SYNC=1' >> /etc/environment; \
-        echo 'KWIN_DRM_NO_DIRECT_SCANOUT=1' >> /etc/environment; \
-        echo 'MESA_VK_WSI_PRESENT_MODE=mailbox' >> /etc/environment; \
     fi
 
 RUN if [ "$ENABLE_8gen2_wayland_ARG" = "true" ]; then \

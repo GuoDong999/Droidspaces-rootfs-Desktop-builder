@@ -215,19 +215,18 @@ RUN if [ "$ENABLE_mesa_ARG" = "true" ] && [ "$DISPLAY_BACKEND" = "anland-wayland
         echo 'MESA_LOADER_DRIVER_OVERRIDE=kgsl' >> /etc/environment; \
         echo 'GALLIUM_DRIVER=kgsl' >> /etc/environment; \
         echo 'FD_FORCE_KGSL=1' >> /etc/environment; \
+        echo 'TURNIP_KMD=kgsl' >> /etc/environment; \
     fi
 
 RUN if [ "$ENABLE_8gen2_wayland_ARG" = "true" ]; then \
         echo 'FD_DEV_FEATURES=enable_tp_ubwc_flag_hint=1' >> /etc/environment; \
     fi
 
-# 写入 SteamOS 专属游戏优化环境变量
+# 写入 SteamOS 专属游戏优化环境变量（注：MANGOHUD / STEAM_RUNTIME 等应用级变量在 steam.sh 与 steamos-gamemode.sh 中按需加载，不可注入全局环境以免导致合成器 kwin 崩溃）
 RUN cat >> /etc/environment <<'EOF'
 STEAMOS=1
-STEAM_RUNTIME=1
 PROTON_USE_WOW64=1
 PROTON_USE_NTSYNC=1
-MANGOHUD=1
 EOF
 
 # 输入法与桌面会话配置
@@ -374,6 +373,23 @@ for unit in systemd-udevd.service systemd-udev-trigger.service systemd-udev-sett
     mkdir -p "/etc/systemd/system/${unit}.d"
     printf "[Unit]\nConditionPathIsReadWrite=\n" > "/etc/systemd/system/${unit}.d/99-readonly-fix.conf"
 done
+
+# 屏蔽在 Android 容器中缺少硬件导致 D-Bus 超时阻塞桌面启动的守护进程
+for unit in upower.service ModemManager.service power-profiles-daemon.service rtkit-daemon.service; do
+    ln -sf /dev/null "/etc/systemd/system/$unit"
+done
+mkdir -p /etc/dbus-1/system-services.disabled
+for dbus_svc in org.freedesktop.UPower.service org.freedesktop.ModemManager1.service; do
+    if [ -f "/usr/share/dbus-1/system-services/$dbus_svc" ]; then
+        mv "/usr/share/dbus-1/system-services/$dbus_svc" /etc/dbus-1/system-services.disabled/ 2>/dev/null || true
+    fi
+done
+
+# 预创建 Anland socket 软链接与通信目录
+mkdir -p /tmp/anland /data/local/tmp
+ln -sf /run/display.sock /tmp/display_daemon.sock
+ln -sf /run/display.sock /tmp/anland/display_daemon.sock
+ln -sf /run/display.sock /data/local/tmp/display_daemon.sock
 
 # 限制特定的网络服务
 for unit in NetworkManager.service dhcpcd.service systemd-resolved.service systemd-networkd.service; do

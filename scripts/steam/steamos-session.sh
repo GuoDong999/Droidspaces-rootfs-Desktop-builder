@@ -34,4 +34,3 @@ else
     echo "--> [SteamOS] Gamescope 未就绪，直接启动 Steam Gamepad UI"
     exec /usr/local/bin/steam -gamepadui -steamos3 "$@"
 fi
-EOF

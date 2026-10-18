@@ -99,4 +99,3 @@ if [ -t 0 ]; then
     esac
 fi
 exit 1
-EOF

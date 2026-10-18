@@ -1433,7 +1433,7 @@ install_arch_packages() {
 
     log "正在安装 Arch GPU 初始化所需的 LLVM 22..." \
         "Installing LLVM 22 required for Arch GPU initialization..."
-    pacman -S --noconfirm --needed llvm22
+    pacman -S --noconfirm --needed llvm22 llvm22-libs 2>/dev/null || pacman -S --noconfirm --needed llvm22
 
     log "正在安装 ${#package_files[@]} 个 Arch Mesa 包..." \
         "Installing ${#package_files[@]} Arch Mesa packages..."

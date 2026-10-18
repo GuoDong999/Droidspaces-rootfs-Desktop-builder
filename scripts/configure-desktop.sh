@@ -125,10 +125,17 @@ fi
 
 if [[ "$desktop" == kde ]]; then
     install -d -m 0755 "$rootfs/home/$username/.config"
-    cat > "$rootfs/home/$username/.config/kwinrc" <<'EOF'
+    if [[ "$backend" == x11 ]]; then
+        cat > "$rootfs/home/$username/.config/kwinrc" <<'EOF'
 [Compositing]
 Enabled=false
 EOF
+    else
+        cat > "$rootfs/home/$username/.config/kwinrc" <<'EOF'
+[Compositing]
+Enabled=true
+EOF
+    fi
 fi
 
 if [[ -z "$rootfs" ]]; then

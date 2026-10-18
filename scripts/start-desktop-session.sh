@@ -5,6 +5,24 @@ config="${DROIDSPACES_DESKTOP_CONFIG:-/etc/droidspaces-desktop.conf}"
 [[ -r "$config" ]] || { echo "缺少桌面配置文件：$config" >&2; exit 1; }
 source "$config"
 
+if [[ "${DISPLAY_BACKEND:-}" == "anland-wayland" ]]; then
+    # 确保 Anland socket 兼容路径与软链接存在
+    for sock in /run/display.sock /data/local/tmp/display_daemon.sock /tmp/display_daemon.sock; do
+        if [[ -S "$sock" ]]; then
+            chmod 666 "$sock" 2>/dev/null || true
+            mkdir -p /tmp/anland /data/local/tmp 2>/dev/null || true
+            ln -sf "$sock" /tmp/display_daemon.sock 2>/dev/null || true
+            ln -sf "$sock" /tmp/anland/display_daemon.sock 2>/dev/null || true
+            ln -sf "$sock" /data/local/tmp/display_daemon.sock 2>/dev/null || true
+            export ANLAND_SOCKET="$sock"
+            break
+        fi
+    done
+
+    # 避免合成器启动时被游戏覆盖层（如 MangoHud）注入导致崩溃
+    unset MANGOHUD || true
+fi
+
 case "${DESKTOP:-}:${DISPLAY_BACKEND:-}" in
     none:x11) command_line='exit 0' ;;
     kde:x11) command_line='export DISPLAY="${DISPLAY:-:5}"; exec startplasma-x11' ;;

@@ -5,4 +5,3 @@
 set -euo pipefail
 
 exec /usr/local/bin/steamos-session "$@"
-EOF

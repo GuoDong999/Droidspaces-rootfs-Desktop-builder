@@ -200,7 +200,7 @@ detect_target() {
       PACKAGE_MANAGER="dnf"
       ARCHIVE_NAME="systemd257-fedora44-arm64.tar.gz"
       ;;
-    arch:|archarm:|archlinux:)
+    arch:|archarm:|archlinux:|steamos:)
       TARGET="arch"
       PACKAGE_MANAGER="pacman"
       ARCHIVE_NAME="systemd257-arch-arm64.tar.gz"

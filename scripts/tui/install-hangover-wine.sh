@@ -185,11 +185,24 @@ detect_target() {
     distro_id="${distro_id,,}"
 
     case "$distro_id" in
-        arch|archarm|steamos)
+        arch|archarm)
             TARGET=arch
             TARGET_LABEL='SteamOS / Arch Linux'
             PACKAGE_KIND=arch
             ARCHIVE_SUFFIX='-aarch64.tar.gz'
+            ;;
+        steamos)
+            if [[ -f /etc/debian_version ]] || command -v apt-get >/dev/null 2>&1; then
+                TARGET=debian13
+                TARGET_LABEL='Debian 13 (SteamOS)'
+                PACKAGE_KIND=deb
+                ARCHIVE_SUFFIX='-arm64.tar.gz'
+            else
+                TARGET=arch
+                TARGET_LABEL='SteamOS / Arch Linux'
+                PACKAGE_KIND=arch
+                ARCHIVE_SUFFIX='-aarch64.tar.gz'
+            fi
             ;;
         ubuntu)
             case "$version_id" in

@@ -118,8 +118,11 @@ RUN apt-get update && \
 RUN cat > /etc/os-release <<'EOF'
 NAME="SteamOS"
 PRETTY_NAME="SteamOS 3 (Debian X11 Edition)"
-ID=steamos
-ID_LIKE="debian"
+ID=debian
+ID_LIKE="steamos"
+VERSION_ID="13"
+VERSION="13 (trixie)"
+VERSION_CODENAME=trixie
 BUILD_ID="rolling"
 ANSI_COLOR="1;35"
 HOME_URL="https://store.steampowered.com/steamos"

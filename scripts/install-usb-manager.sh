@@ -104,7 +104,14 @@ detect_target() {
     case "$ID" in
         debian|ubuntu) PACKAGE_FAMILY="apt" ;;
         fedora) PACKAGE_FAMILY="dnf" ;;
-        arch|archarm|steamos) PACKAGE_FAMILY="pacman" ;;
+        arch|archarm) PACKAGE_FAMILY="pacman" ;;
+        steamos)
+            if [[ -f /etc/debian_version ]] || command -v apt-get >/dev/null 2>&1; then
+                PACKAGE_FAMILY="apt"
+            else
+                PACKAGE_FAMILY="pacman"
+            fi
+            ;;
         *)
             case " ${ID_LIKE:-} " in
                 *" debian "*|*" ubuntu "*) PACKAGE_FAMILY="apt" ;;

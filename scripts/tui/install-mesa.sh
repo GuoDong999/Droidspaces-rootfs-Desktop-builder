@@ -362,11 +362,24 @@ detect_target() {
     ARCHIVE_KIND=""
 
     case "$distro_id" in
-        arch|archarm|archlinux|steamos)
+        arch|archarm|archlinux)
             TARGET="SteamOS / Arch Linux"
             PACKAGE_MANAGER="pacman"
             ARCHIVE_KIND="tar"
             ASSET_PATTERN='^mesa-for-android-container_[^/]+_archlinux_arm64\.tar$'
+            ;;
+        steamos)
+            if [[ -f /etc/debian_version ]] || command -v apt-get >/dev/null 2>&1; then
+                TARGET="Debian 13"
+                PACKAGE_MANAGER="apt"
+                ARCHIVE_KIND="tar.gz"
+                ASSET_PATTERN='^mesa-for-android-container_[^/]+_debian_trixie_arm64\.tar\.gz$'
+            else
+                TARGET="SteamOS / Arch Linux"
+                PACKAGE_MANAGER="pacman"
+                ARCHIVE_KIND="tar"
+                ASSET_PATTERN='^mesa-for-android-container_[^/]+_archlinux_arm64\.tar$'
+            fi
             ;;
         debian)
             case "$version_id" in

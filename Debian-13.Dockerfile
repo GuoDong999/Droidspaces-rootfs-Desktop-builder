@@ -167,8 +167,8 @@ RUN if [ "$ENABLE_mesa_ARG" = "true" ]; then \
         echo 'TURNIP_KMD=kgsl' >> /etc/environment; \
         echo 'VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json' >> /etc/environment; \
         echo 'TU_DEBUG=noconform' >> /etc/environment; \
-        echo 'MESA_LOADER_DRIVER_OVERRIDE=zink' >> /etc/environment; \
-        echo 'GALLIUM_DRIVER=zink' >> /etc/environment; \
+        echo 'MESA_LOADER_DRIVER_OVERRIDE=kgsl' >> /etc/environment; \
+        echo 'GALLIUM_DRIVER=kgsl' >> /etc/environment; \
         echo 'FD_FORCE_KGSL=1' >> /etc/environment; \
     fi
 
@@ -499,8 +499,8 @@ export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-pulse}"
 export TURNIP_KMD="kgsl"
 export VK_ICD_FILENAMES="/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json"
 export TU_DEBUG="noconform"
-export MESA_LOADER_DRIVER_OVERRIDE="zink"
-export GALLIUM_DRIVER="zink"
+export MESA_LOADER_DRIVER_OVERRIDE="kgsl"
+export GALLIUM_DRIVER="kgsl"
 export FD_FORCE_KGSL=1
 
 export STEAMOS=1

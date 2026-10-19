@@ -49,6 +49,7 @@ COPY scripts/tui/install-anland-mango.sh /usr/local/sbin/install-anland-mango
 COPY scripts/tui/install-anland-denial.sh /usr/local/sbin/install-anland-denial
 COPY scripts/install-anland-desktop.sh /usr/local/sbin/install-anland-desktop
 COPY scripts/tui/install-mesa.sh /usr/local/sbin/install-mesa
+COPY scripts/steam/install-arm64-steam.sh /usr/local/sbin/install-arm64-steam
 COPY scripts/tui/install-hangover-wine.sh /usr/local/sbin/install-hangover-wine
 COPY scripts/tui/install-winefonts.sh /usr/local/sbin/install-winefonts
 COPY scripts/tui/droidspaces-tui.sh /usr/local/bin/droidspaces-tui
@@ -198,20 +199,16 @@ fi
 EOF
 RUN chmod +x /usr/local/sbin/install-ge-proton
 
-# 预置 Steam 客户端核心解压与 64 位 SteamRT3 配置
-RUN mkdir -p /home/${USERNAME}/.local/share/Steam/package /home/${USERNAME}/.local/share/Steam/config /home/${USERNAME}/.local/share/Steam/compatibilitytools.d && \
-    mkdir -p /home/${USERNAME}/.steam && \
-    (tar -xf /usr/lib/steam/bootstraplinux_ubuntu12_32.tar.xz -C /home/${USERNAME}/.local/share/Steam/ 2>/dev/null || true) && \
-    touch /home/${USERNAME}/.local/share/Steam/.steam-enable-steamrt64-client && \
-    echo "publicbeta" > /home/${USERNAME}/.local/share/Steam/package/beta && \
-    ln -fns /home/${USERNAME}/.local/share/Steam /home/${USERNAME}/.steam/steam && \
-    ln -fns /home/${USERNAME}/.local/share/Steam /home/${USERNAME}/.steam/root && \
+# 部署 Valve 官方原生 ARM64 Steam 客户端与 ARM64 Proton 安装器
+RUN chmod +x /usr/local/sbin/install-arm64-steam && \
+    echo "--> [SteamOS] 正在部署 Valve 原生 ARM64 Steam 客户端与 Proton 游戏兼容层..." && \
+    (/usr/local/sbin/install-arm64-steam "${USERNAME}" || echo "--> [跳过] 离线构建环境中跳过网络下载") && \
     mkdir -p /etc/skel/.local/share/Steam /etc/skel/.steam && \
     (cp -r /home/${USERNAME}/.local/share/Steam/* /etc/skel/.local/share/Steam/ 2>/dev/null || true) && \
     ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/steam && \
     ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/root
 
-# 创建掌机专属 Linux 原生 Steam 封装器与开机直启脚本
+# 创建掌机专属 Valve 原生 ARM64 Steam 极速封装器 (直通 Adreno GPU，零转译损耗)
 RUN cat > /usr/local/bin/steam <<'EOF'
 #!/usr/bin/env bash
 set -e
@@ -231,63 +228,45 @@ export PULSE_SERVER="${PULSE_SERVER:-unix:/tmp/.pulse-socket}"
 export PULSE_LATENCY_MSEC="${PULSE_LATENCY_MSEC:-20}"
 export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-pulse}"
 
-# Steam 掌机与 Proton 兼容层环境变量
+# 性能与同步优化
 export STEAMOS=1
 export STEAM_RUNTIME=1
-export PROTON_USE_WOW64=1
-export PROTON_USE_NTSYNC=1
 export DBUS_FATAL_WARNINGS=0
+export MESA_VK_WSI_PRESENT_MODE=mailbox
+export TU_DEBUG=noconform
 
-# Box64 转译引擎优化环境变量 (严禁设置 BOX64_EMULATED_LIBS 包含 libGL，否则会导致硬件驱动丢失报段错误)
-export BOX64_BINFMT=1
-export BOX64_NOBANNER=1
-export BOX64_DYNAREC=1
-export BOX64_DYNAREC_WAIT=1
-export BOX64_DYNAREC_FASTNAN=1
-export BOX64_DYNAREC_FASTROUND=1
-export BOX64_DYNAREC_X87DOUBLE=0
-export BOX64_DYNAREC_STRONGMEM=2
-export BOX64_DYNAREC_BIGBLOCK=3
-export BOX64_NOGTK=1
-export BOX64_NOSANDBOX=1
-export BOX64_INPROCESSGPU=1
-
-# 容器环境下的 Chromium / CEF 沙箱兼容参数
+# CEF 渲染与沙箱优化（保证原生 ARM64 界面以 60FPS 极速渲染）
 CEF_FLAGS=(
     -no-cef-sandbox
-    -cef-disable-seccomp-sandbox
-    -cef-disable-sandbox
-    -cef-disable-dev-shm-usage
+    -cef-ozone-platform=x11
+    -cef-enable-gpu-rasterization
+    -cef-ignore-gpu-blocklist
     --no-sandbox
     --no-zygote
     --disable-gpu-sandbox
-    -cef-ignore-gpu-blocklist
-    -cef-enable-gpu-rasterization
+    --in-process-gpu
 )
 
-# 确保 64 位 SteamRT3 标记存在
-STEAM_DIR="${HOME}/.local/share/Steam"
-mkdir -p "$STEAM_DIR/package" 2>/dev/null || true
-touch "$STEAM_DIR/.steam-enable-steamrt64-client" 2>/dev/null || true
-if [ ! -f "$STEAM_DIR/package/beta" ]; then
-    echo "publicbeta" > "$STEAM_DIR/package/beta" 2>/dev/null || true
+STEAM_ROOT="${HOME}/.local/share/Steam"
+if [ ! -x "$STEAM_ROOT/steamrtarm64/steam" ]; then
+    echo "--> [SteamOS] 正在部署 Valve 官方 ARM64 原生 Steam 客户端与 Proton 游戏兼容层..."
+    /usr/local/sbin/install-arm64-steam || true
 fi
 
-# 检查原生 Steam 核心客户端
-REAL_STEAM="/usr/bin/steam"
-if [ ! -x "$REAL_STEAM" ] && [ -x /usr/lib/steam/bin_steam.sh ]; then
-    REAL_STEAM="/usr/lib/steam/bin_steam.sh"
+if [ -x "$STEAM_ROOT/steamrtarm64/steam" ]; then
+    export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    if [ $# -eq 0 ]; then
+        set -- "${CEF_FLAGS[@]}" -gamepadui -fullscreen -steamos3
+    else
+        set -- "${CEF_FLAGS[@]}" "$@"
+    fi
+    echo "--> [SteamOS] 启动 Valve 原生 ARM64 Steam 客户端..."
+    exec "$STEAM_ROOT/steamrtarm64/steam" "$@"
 fi
 
-# 参数透传：默认带上全套 CEF 沙箱保护参数
-if [ $# -eq 0 ]; then
-    set -- "${CEF_FLAGS[@]}" -gamepadui -fullscreen -steamos3
-else
-    set -- "${CEF_FLAGS[@]}" "$@"
-fi
-
-echo "--> [SteamOS] 正在启动 Linux 原生 Steam 掌机模式 (X11)..."
-exec "$REAL_STEAM" "$@"
+# 兜底回退
+echo "--> [SteamOS] 错误：未找到 ARM64 原生客户端，请在终端执行 'install-arm64-steam' 安装！" >&2
+exit 1
 EOF
 RUN chmod +x /usr/local/bin/steam && \
     ln -sf /usr/local/bin/steam /usr/local/bin/steamos-session

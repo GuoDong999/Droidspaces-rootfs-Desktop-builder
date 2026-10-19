@@ -89,7 +89,7 @@ RUN apt-get update && \
     # 用于系统监控的 procps 进程工具
     procps \
     # 核心内核模块支持
-    kmod tzdata tar mesa-utils vulkan-tools pulseaudio-utils zenity cabextract libevdev2 evtest pciutils usbutils xdg-utils xdg-user-dirs strace binutils libnss3 libnspr4 libasound2* libpulse0 libxss1 libxtst6 libxrandr2 libxcomposite1 libxcursor1 libxdamage1 libxi6 libva2 libopenal1 libxinerama1 libsm6 libice6 && \
+    kmod tzdata tar mesa-utils vulkan-tools pulseaudio-utils zenity cabextract libevdev2 evtest pciutils usbutils xdg-utils xdg-user-dirs strace binutils libnss3 libnspr4 libasound2* libpulse0 libxss1 libxtst6 libxrandr2 libxcomposite1 libxcursor1 libxdamage1 libxi6 libva2 libopenal1 libxinerama1 libsm6 libice6 libavif16 libnm0 libpipewire-0.3-0 && \
     (apt-get install -y libgtk2.0-0t64 || apt-get install -y libgtk2.0-0 || true) && \
     /usr/local/sbin/install-desktop "$DESKTOP" && \
     ############################################## Anland Wayland 支持 ################################################

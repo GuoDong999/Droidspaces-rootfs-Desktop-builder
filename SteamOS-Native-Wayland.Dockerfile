@@ -248,12 +248,18 @@ export PULSE_SERVER="${PULSE_SERVER:-unix:/tmp/.pulse-socket}"
 export PULSE_LATENCY_MSEC="${PULSE_LATENCY_MSEC:-20}"
 export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-pulse}"
 
-# 性能与同步优化
+# 性能与高通 Adreno 核显 (Turnip + KGSL + Zink) 强制直通
+export TURNIP_KMD="kgsl"
+export VK_ICD_FILENAMES="/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json"
+export TU_DEBUG="noconform"
+export MESA_LOADER_DRIVER_OVERRIDE="zink"
+export GALLIUM_DRIVER="zink"
+export FD_FORCE_KGSL=1
+
 export STEAMOS=1
 export STEAM_RUNTIME=1
 export DBUS_FATAL_WARNINGS=0
 export MESA_VK_WSI_PRESENT_MODE=mailbox
-export TU_DEBUG=noconform
 
 # CEF 渲染与沙箱优化（自动适配 Wayland 与 X11）
 CEF_FLAGS=(
@@ -370,7 +376,7 @@ EOF
 
 RUN if [ "" = "anland-wayland" ]; then         echo 'WAYLAND_DISPLAY=wayland-0' >> /etc/environment;         echo 'QT_QPA_PLATFORM=wayland' >> /etc/environment;         echo 'ANLAND=1' >> /etc/environment;         echo 'ANLAND_SOCKET=/run/display.sock' >> /etc/environment;         echo 'ANLAND_DRM_DEVICE=/dev/dri/renderD128' >> /etc/environment;     else         echo 'DISPLAY=:5' >> /etc/environment;     fi
 
-RUN if [ "" = "true" ] && [ "" = "anland-wayland" ]; then         echo 'MESA_LOADER_DRIVER_OVERRIDE=kgsl' >> /etc/environment;         echo 'GALLIUM_DRIVER=kgsl' >> /etc/environment;         echo 'FD_FORCE_KGSL=1' >> /etc/environment;     fi
+RUN if [ "" = "true" ]; then         echo 'TURNIP_KMD=kgsl' >> /etc/environment;         echo 'VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json' >> /etc/environment;         echo 'TU_DEBUG=noconform' >> /etc/environment;         echo 'MESA_LOADER_DRIVER_OVERRIDE=zink' >> /etc/environment;         echo 'GALLIUM_DRIVER=zink' >> /etc/environment;         echo 'FD_FORCE_KGSL=1' >> /etc/environment;     fi
 
 # 音频配置
 RUN if [ "$PulseAudio" = "socket" ]; then \

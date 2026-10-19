@@ -227,12 +227,18 @@ export PULSE_SERVER="${PULSE_SERVER:-unix:/tmp/.pulse-socket}"
 export PULSE_LATENCY_MSEC="${PULSE_LATENCY_MSEC:-20}"
 export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-pulse}"
 
-# 性能与同步优化
+# 性能与高通 Adreno 核显 (Turnip + KGSL + Zink) 强制直通
+export TURNIP_KMD="kgsl"
+export VK_ICD_FILENAMES="/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json"
+export TU_DEBUG="noconform"
+export MESA_LOADER_DRIVER_OVERRIDE="zink"
+export GALLIUM_DRIVER="zink"
+export FD_FORCE_KGSL=1
+
 export STEAMOS=1
 export STEAM_RUNTIME=1
 export DBUS_FATAL_WARNINGS=0
 export MESA_VK_WSI_PRESENT_MODE=mailbox
-export TU_DEBUG=noconform
 
 # CEF 渲染与沙箱优化（保证原生 ARM64 界面以 60FPS 极速渲染）
 CEF_FLAGS=(
@@ -346,6 +352,12 @@ PROTON_USE_WOW64=1
 PROTON_USE_NTSYNC=1
 BOX64_BINFMT=1
 BOX64_NOBANNER=1
+TURNIP_KMD=kgsl
+VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json
+TU_DEBUG=noconform
+MESA_LOADER_DRIVER_OVERRIDE=zink
+GALLIUM_DRIVER=zink
+FD_FORCE_KGSL=1
 EOF
 
 # 音频配置

@@ -503,6 +503,9 @@ if [ -z "${DISPLAY:-}" ]; then
     export DISPLAY="${DISPLAY:-:0}"
 fi
 
+# 解除 X11 访问鉴权限制 (防止 Authorization required 报错)
+xhost +local: 2>/dev/null || xhost + 2>/dev/null || true
+
 export PULSE_SERVER="${PULSE_SERVER:-unix:/tmp/.pulse-socket}"
 export PULSE_LATENCY_MSEC="${PULSE_LATENCY_MSEC:-20}"
 export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-pulse}"

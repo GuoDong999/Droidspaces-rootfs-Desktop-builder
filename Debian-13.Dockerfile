@@ -53,6 +53,7 @@ COPY scripts/tui/install-anland-mango.sh /usr/local/sbin/install-anland-mango
 COPY scripts/tui/install-anland-denial.sh /usr/local/sbin/install-anland-denial
 COPY scripts/install-anland-desktop.sh /usr/local/sbin/install-anland-desktop
 COPY scripts/tui/install-mesa.sh /usr/local/sbin/install-mesa
+COPY scripts/steam/install-arm64-steam.sh /usr/local/sbin/install-arm64-steam
 COPY scripts/tui/install-hangover-wine.sh /usr/local/sbin/install-hangover-wine
 COPY scripts/tui/install-winefonts.sh /usr/local/sbin/install-winefonts
 COPY scripts/tui/droidspaces-tui.sh /usr/local/bin/droidspaces-tui
@@ -88,7 +89,7 @@ RUN apt-get update && \
     # 用于系统监控的 procps 进程工具
     procps \
     # 核心内核模块支持
-    kmod tzdata tar && \
+    kmod tzdata tar mesa-utils vulkan-tools pulseaudio-utils zenity cabextract libevdev2 evtest pciutils usbutils xdg-utils xdg-user-dirs strace binutils && \
     /usr/local/sbin/install-desktop "$DESKTOP" && \
     ############################################## Anland Wayland 支持 ################################################
     if [ "$DISPLAY_BACKEND" = "anland-wayland" ]; then \
@@ -155,10 +156,20 @@ RUN /usr/local/sbin/install-droidspaces-usb-manager --user "${USERNAME}"
 # 初始化环境变量文件；桌面专属变量由对应 profile 管理。
 RUN : > /etc/environment
 
-RUN if [ "$ENABLE_mesa_ARG" = "true" ] && [ "$DISPLAY_BACKEND" = "anland-wayland" ]; then \
-        echo "MESA_LOADER_DRIVER_OVERRIDE=kgsl" >> /etc/environment; \
-        echo "GALLIUM_DRIVER=kgsl" >> /etc/environment; \
-        echo "FD_FORCE_KGSL=1" >> /etc/environment; \
+RUN cat >> /etc/environment <<'EOF'
+STEAMOS=1
+STEAM_RUNTIME=1
+PROTON_USE_WOW64=1
+PROTON_USE_NTSYNC=1
+EOF
+
+RUN if [ "$ENABLE_mesa_ARG" = "true" ]; then \
+        echo 'TURNIP_KMD=kgsl' >> /etc/environment; \
+        echo 'VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json' >> /etc/environment; \
+        echo 'TU_DEBUG=noconform' >> /etc/environment; \
+        echo 'MESA_LOADER_DRIVER_OVERRIDE=zink' >> /etc/environment; \
+        echo 'GALLIUM_DRIVER=zink' >> /etc/environment; \
+        echo 'FD_FORCE_KGSL=1' >> /etc/environment; \
     fi
 
 # 修复骁龙8 Gen 2 设备在 Wayland 下的花屏问题
@@ -254,11 +265,13 @@ grep -q '^aid_inet:' /etc/group     || echo 'aid_inet:x:3003:'    >> /etc/group
 grep -q '^aid_net_raw:' /etc/group || echo 'aid_net_raw:x:3004:' >> /etc/group
 grep -q '^aid_net_admin:' /etc/group || echo 'aid_net_admin:x:3005:' >> /etc/group
 
-# 检查并创建 droidspaces-gpu 组
+# 检查并创建 Android GPU 权限组 (1003 aid_graphics, 1034 aid_render, 786 droidspaces-gpu)
+grep -q '^aid_graphics:' /etc/group || echo 'aid_graphics:x:1003:' >> /etc/group
+grep -q '^aid_render:' /etc/group   || echo 'aid_render:x:1034:'   >> /etc/group
 getent group droidspaces-gpu >/dev/null || groupadd -g 786 -r droidspaces-gpu
-# 为 root 用户赋予访问 Android 硬件及网络的权限组
-usermod -a -G aid_inet,aid_net_raw,input,video,tty,droidspaces-gpu root || true
-usermod -a -G aid_inet,aid_net_raw,input,video,tty,sudo,droidspaces-gpu ${USERNAME} || true
+# 为 root 用户和普通用户赋予访问 Android 硬件、显卡及网络的权限组
+usermod -a -G aid_inet,aid_net_raw,input,video,tty,aid_graphics,aid_render,droidspaces-gpu root || true
+usermod -a -G aid_inet,aid_net_raw,input,video,tty,sudo,aid_graphics,aid_render,droidspaces-gpu ${USERNAME} || true
 
 # 将 _apt 的主用户组改为 aid_inet，确保 apt 包管理器在 Android 环境下可以正常联网
 grep -q '^_apt:' /etc/passwd && usermod -g aid_inet _apt || true
@@ -424,6 +437,137 @@ RUN rm -f \
     rm -rf /var/lib/apt/lists/*
 
 # 阶段 2：将完整的根文件系统导出到 scratch（空白层），以便外部直接提取或打包成 tarfs
+
+# 预创建 Anland 5 socket 软链接与通信目录
+RUN mkdir -p /tmp/anland /data/local/tmp /run && \
+    ln -sf /run/display.sock /tmp/display_daemon.sock && \
+    ln -sf /run/display.sock /tmp/anland/display_daemon.sock && \
+    ln -sf /run/display.sock /data/local/tmp/display_daemon.sock
+
+# 针对 Anland 5 高刷屏优化 KWin 合成器配置
+RUN mkdir -p /home/${USERNAME}/.config /etc/skel/.config && \
+    cat > /home/${USERNAME}/.config/kwinrc <<'EOF'
+[Compositing]
+Enabled=true
+LatencyPolicy=High
+GLCore=true
+EOF
+RUN cp -f /home/${USERNAME}/.config/kwinrc /etc/skel/.config/kwinrc 2>/dev/null || true
+
+# 部署 Valve 官方原生 ARM64 Steam 客户端与 ARM64 Proton 安装器
+RUN chmod +x /usr/local/sbin/install-arm64-steam && \
+    echo "--> [SteamOS] 正在部署 Valve 原生 ARM64 Steam 客户端与 Proton 游戏兼容层..." && \
+    (/usr/local/sbin/install-arm64-steam "${USERNAME}" || echo "--> [跳过] 离线构建环境中跳过网络下载") && \
+    mkdir -p /etc/skel/.steam && \
+    ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/steam && \
+    ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/root
+
+# 创建掌机专属 Valve 原生 ARM64 Steam 极速封装器 (自动适配 Wayland 与 X11，直通 Adreno 840)
+RUN cat > /usr/local/bin/steam <<'EOF'
+#!/usr/bin/env bash
+set -e
+
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+mkdir -p "$XDG_RUNTIME_DIR" /dev/shm 2>/dev/null || true
+chmod 700 "$XDG_RUNTIME_DIR" 2>/dev/null || true
+chmod 1777 /dev/shm 2>/dev/null || true
+
+if [ -n "${WAYLAND_DISPLAY:-}" ] || [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then
+    export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-0}"
+    export GDK_BACKEND="wayland,x11"
+    export QT_QPA_PLATFORM="wayland;xcb"
+    export SDL_VIDEODRIVER="wayland,x11"
+    OZONE="wayland"
+else
+    export DISPLAY="${DISPLAY:-:5}"
+    export SDL_VIDEODRIVER="x11"
+    export GDK_BACKEND="x11"
+    export QT_QPA_PLATFORM="xcb"
+    OZONE="x11"
+fi
+
+export PULSE_SERVER="${PULSE_SERVER:-unix:/tmp/.pulse-socket}"
+export PULSE_LATENCY_MSEC="${PULSE_LATENCY_MSEC:-20}"
+export SDL_AUDIODRIVER="${SDL_AUDIODRIVER:-pulse}"
+
+# 性能与高通 Adreno 核显 (Turnip + KGSL + Zink) 强制直通
+export TURNIP_KMD="kgsl"
+export VK_ICD_FILENAMES="/usr/share/vulkan/icd.d/freedreno_icd.aarch64.json"
+export TU_DEBUG="noconform"
+export MESA_LOADER_DRIVER_OVERRIDE="zink"
+export GALLIUM_DRIVER="zink"
+export FD_FORCE_KGSL=1
+
+export STEAMOS=1
+export STEAM_RUNTIME=1
+export DBUS_FATAL_WARNINGS=0
+export MESA_VK_WSI_PRESENT_MODE=mailbox
+
+CEF_FLAGS=(
+    -no-cef-sandbox
+    "-cef-ozone-platform=${OZONE}"
+    -cef-enable-gpu-rasterization
+    -cef-ignore-gpu-blocklist
+    --no-sandbox
+    --no-zygote
+    --disable-gpu-sandbox
+    --in-process-gpu
+)
+
+STEAM_ROOT="${HOME}/.local/share/Steam"
+if [ ! -x "$STEAM_ROOT/steamrtarm64/steam" ]; then
+    echo "--> [SteamOS] 正在部署 Valve 官方 ARM64 原生 Steam 客户端与 Proton 游戏兼容层..."
+    /usr/local/sbin/install-arm64-steam || true
+fi
+
+if [ -x "$STEAM_ROOT/steamrtarm64/steam" ]; then
+    export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    if [ $# -eq 0 ]; then
+        set -- "${CEF_FLAGS[@]}" -gamepadui -fullscreen -steamos3
+    else
+        set -- "${CEF_FLAGS[@]}" "$@"
+    fi
+    echo "--> [SteamOS] 启动 Valve 原生 ARM64 Steam 客户端..."
+    exec "$STEAM_ROOT/steamrtarm64/steam" "$@"
+fi
+
+echo "--> [SteamOS] 错误：未找到 ARM64 原生客户端，请在终端执行 'install-arm64-steam' 安装！" >&2
+exit 1
+EOF
+RUN chmod +x /usr/local/bin/steam && \
+    ln -sf /usr/local/bin/steam /usr/local/bin/steamos-session
+
+# 配置桌面图标、快捷方式与 Steam Deck Gamepad UI 自动启动
+RUN mkdir -p /usr/share/applications /home/${USERNAME}/Desktop /home/${USERNAME}/.config/autostart /etc/skel/Desktop /etc/skel/.config/autostart /etc/xdg/autostart && \
+    cat > /usr/share/applications/steam.desktop <<'EOF' && \
+[Desktop Entry]
+Name=Steam
+Comment=Application for managing and playing games on Steam
+Exec=/usr/local/bin/steam %U
+Icon=steam
+Terminal=false
+Type=Application
+Categories=Network;FileTransfer;Game;
+MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
+EOF
+    cat > /usr/share/applications/steam-gamepadui.desktop <<'EOF' && \
+[Desktop Entry]
+Name=Steam Deck Gamepad UI
+Comment=Start Steam in Handheld Big Picture Gamepad UI Mode
+Exec=/usr/local/bin/steam -gamepadui -fullscreen -steamos3
+Icon=steam
+Terminal=false
+Type=Application
+Categories=Game;
+EOF
+    cp -f /usr/share/applications/steam*.desktop /home/${USERNAME}/Desktop/ && \
+    cp -f /usr/share/applications/steam-gamepadui.desktop /home/${USERNAME}/.config/autostart/ && \
+    cp -f /usr/share/applications/steam-gamepadui.desktop /etc/xdg/autostart/ && \
+    cp -f /usr/share/applications/steam*.desktop /etc/skel/Desktop/ 2>/dev/null || true && \
+    cp -f /usr/share/applications/steam-gamepadui.desktop /etc/skel/.config/autostart/ 2>/dev/null || true && \
+    chmod +x /home/${USERNAME}/Desktop/*.desktop 2>/dev/null || true && \
+    chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/Desktop /home/${USERNAME}/.config 2>/dev/null || true
+
 FROM scratch AS export
 
 # 从 customizer 编译阶段将所有定制好的根文件系统内容整体拷贝出来

@@ -509,13 +509,14 @@ export MESA_VK_WSI_PRESENT_MODE=mailbox
 
 CEF_FLAGS=(
     -no-cef-sandbox
-    "-cef-ozone-platform=${OZONE}"
-    -cef-enable-gpu-rasterization
-    -cef-ignore-gpu-blocklist
+    -cef-disable-sandbox
+    -cef-disable-gpu
+    --disable-gpu
+    --disable-gpu-compositing
     --no-sandbox
     --no-zygote
     --disable-gpu-sandbox
-    --in-process-gpu
+    "-cef-ozone-platform=${OZONE}"
 )
 
 STEAM_ROOT="${HOME}/.local/share/Steam"

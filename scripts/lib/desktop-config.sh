@@ -48,7 +48,7 @@ display_backend_label() {
 
 target_is_known() {
     case "${1:-}" in
-        Debian-13|Ubuntu-24|Ubuntu-25|Ubuntu-26|Fedora-43|Fedora-44|Arch|SteamOS|SteamOS-Debian|SteamOS-Native-X11) return 0 ;;
+        Debian-13|Ubuntu-24|Ubuntu-25|Ubuntu-26|Fedora-43|Fedora-44|Arch|SteamOS|SteamOS-Debian|SteamOS-Native-X11|SteamOS-Native-Wayland) return 0 ;;
         *) return 1 ;;
     esac
 }
@@ -98,7 +98,7 @@ desktop_backend_supported() {
             ;;
         kde:anland-wayland|kde-mobile:anland-wayland)
             case "$target" in
-                Debian-13|Ubuntu-26|Fedora-43|Fedora-44|Arch|SteamOS) return 0 ;;
+                Debian-13|Ubuntu-26|Fedora-43|Fedora-44|Arch|SteamOS|SteamOS-Native-Wayland) return 0 ;;
                 *) return 1 ;;
             esac
             ;;
@@ -132,7 +132,7 @@ desktop_wayland_targets_json() {
 
 anland_archive_target() {
     case "${1:-}" in
-        Debian-13|SteamOS-Debian|SteamOS-Native-X11) printf '%s\n' Debian13 ;;
+        Debian-13|SteamOS-Debian|SteamOS-Native-X11|SteamOS-Native-Wayland) printf '%s\n' Debian13 ;;
         Ubuntu-26) printf '%s\n' ubuntu2604 ;;
         Fedora-43) printf '%s\n' Fedora43 ;;
         Fedora-44) printf '%s\n' Fedora44 ;;

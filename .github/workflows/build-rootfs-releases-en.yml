@@ -19,6 +19,7 @@ on:
           - SteamOS
           - SteamOS-Debian
           - SteamOS-Native-X11
+          - SteamOS-Native-Wayland
           - all
           - all-wayland
       custom_username:

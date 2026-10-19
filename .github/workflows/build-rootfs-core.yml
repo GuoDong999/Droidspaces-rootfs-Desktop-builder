@@ -357,7 +357,16 @@ jobs:
       - name: ${{ inputs.ui_language == 'zh' && '整理发布文件' || 'Organize release files' }}
         run: |
           mkdir -p release_assets
-          mv *.tar.xz release_assets/
+          for f in *.tar.xz; do
+            [ -f "$f" ] || continue
+            size=$(stat -c%s "$f" 2>/dev/null || stat -f%z "$f" 2>/dev/null || echo 0)
+            if [ "$size" -ge 2000000000 ]; then
+              echo "文件 $f 大小 ($size 字节) 超过 GitHub 2GB 上传上限，自动分卷保存..."
+              split -b 1900M -d "$f" "${f}.part"
+              rm -f "$f"
+            fi
+          done
+          mv *.tar.xz* release_assets/
 
       - name: ${{ inputs.ui_language == 'zh' && '生成发布说明' || 'Prepare Release notes' }}
         env:

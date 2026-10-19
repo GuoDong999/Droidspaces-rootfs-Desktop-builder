@@ -101,21 +101,15 @@ else
     echo "--> [SteamOS 警告] 无法直接下载官方 ARM64 Proton，将在进入系统后自动重试" >&2
 fi
 
-# 4. 配置与生成 Steam 兼容性工具列表（与 Droiddeck 菜单完全一致）
-# 查找解压后的 Proton 目录名 (通常形如 DroidDeck-Proton 11-9.1)
+# 4. 配置与生成 Steam 兼容性工具列表（使用软链接共享唯一实体，杜绝体积膨胀）
 REAL_PROTON_DIR="$(find "$COMPAT_DIR" -maxdepth 1 -type d -iname "*proton*" 2>/dev/null | head -n 1 || true)"
 if [ -n "$REAL_PROTON_DIR" ] && [ -d "$REAL_PROTON_DIR" ]; then
-    # 建立标准命名链接
     PROTON_EXP_DIR="$COMPAT_DIR/Proton-Experimental-ARM64"
-    GE_PROTON_DIR="$COMPAT_DIR/GE-Proton-ARM64"
-    PROTON_9_DIR="$COMPAT_DIR/Proton-9.0-ARM64"
+    if [ "$REAL_PROTON_DIR" != "$PROTON_EXP_DIR" ]; then
+        mv -f "$REAL_PROTON_DIR" "$PROTON_EXP_DIR"
+    fi
 
-    mkdir -p "$PROTON_EXP_DIR" "$GE_PROTON_DIR" "$PROTON_9_DIR"
-    cp -rn "$REAL_PROTON_DIR"/* "$PROTON_EXP_DIR/" 2>/dev/null || true
-    cp -rn "$REAL_PROTON_DIR"/* "$GE_PROTON_DIR/" 2>/dev/null || true
-    cp -rn "$REAL_PROTON_DIR"/* "$PROTON_9_DIR/" 2>/dev/null || true
-
-    # 生成各版本的 compatibilitytool.vdf 与 toolmanifest.vdf
+    # 生成主 Proton 描述文件
     cat > "$PROTON_EXP_DIR/compatibilitytool.vdf" <<'EOF'
 "compatibilitytools"
 {
@@ -132,6 +126,25 @@ if [ -n "$REAL_PROTON_DIR" ] && [ -d "$REAL_PROTON_DIR" ]; then
 }
 EOF
 
+    cat > "$PROTON_EXP_DIR/toolmanifest.vdf" <<'EOF'
+"manifest"
+{
+  "version" "2"
+  "commandline" "/proton %verb%"
+  "use_sessions" "1"
+  "compatmanager_layer_name" "proton"
+}
+EOF
+    chmod +x "$PROTON_EXP_DIR/proton" 2>/dev/null || true
+
+    # 其余兼容模式采用轻量软链接与独立描述，不重复占用磁盘
+    GE_PROTON_DIR="$COMPAT_DIR/GE-Proton-ARM64"
+    PROTON_9_DIR="$COMPAT_DIR/Proton-9.0-ARM64"
+    mkdir -p "$GE_PROTON_DIR" "$PROTON_9_DIR"
+    
+    ln -sfn "$PROTON_EXP_DIR/proton" "$GE_PROTON_DIR/proton"
+    ln -sfn "$PROTON_EXP_DIR/files" "$GE_PROTON_DIR/files"
+    ln -sfn "$PROTON_EXP_DIR/protonfixes" "$GE_PROTON_DIR/protonfixes"
     cat > "$GE_PROTON_DIR/compatibilitytool.vdf" <<'EOF'
 "compatibilitytools"
 {
@@ -147,7 +160,19 @@ EOF
   }
 }
 EOF
+    cat > "$GE_PROTON_DIR/toolmanifest.vdf" <<'EOF'
+"manifest"
+{
+  "version" "2"
+  "commandline" "/proton %verb%"
+  "use_sessions" "1"
+  "compatmanager_layer_name" "proton"
+}
+EOF
 
+    ln -sfn "$PROTON_EXP_DIR/proton" "$PROTON_9_DIR/proton"
+    ln -sfn "$PROTON_EXP_DIR/files" "$PROTON_9_DIR/files"
+    ln -sfn "$PROTON_EXP_DIR/protonfixes" "$PROTON_9_DIR/protonfixes"
     cat > "$PROTON_9_DIR/compatibilitytool.vdf" <<'EOF'
 "compatibilitytools"
 {
@@ -163,9 +188,7 @@ EOF
   }
 }
 EOF
-
-    for pdir in "$PROTON_EXP_DIR" "$GE_PROTON_DIR" "$PROTON_9_DIR"; do
-        cat > "$pdir/toolmanifest.vdf" <<'EOF'
+    cat > "$PROTON_9_DIR/toolmanifest.vdf" <<'EOF'
 "manifest"
 {
   "version" "2"
@@ -174,8 +197,6 @@ EOF
   "compatmanager_layer_name" "proton"
 }
 EOF
-        chmod +x "$pdir/proton" 2>/dev/null || true
-    done
 fi
 
 # 5. 配置 Steam 全局默认启用 Proton Experimental ARM64 (SteamPlay)
@@ -207,4 +228,4 @@ EOF
 # 6. 权限修复
 chown -R "${TARGET_USER}:${TARGET_USER}" "${STEAM_ROOT}" "${TARGET_HOME}/.steam" 2>/dev/null || true
 
-echo "--> [SteamOS] Valve 原生 ARM64 Steam 与 Proton 兼容层全面配置就绪！"
+echo "--> [SteamOS] Valve 原生 ARM64 Steam 与 Proton 兼容层配置就绪！"

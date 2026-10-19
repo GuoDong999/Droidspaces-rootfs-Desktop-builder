@@ -203,8 +203,7 @@ RUN chmod +x /usr/local/sbin/install-ge-proton
 RUN chmod +x /usr/local/sbin/install-arm64-steam && \
     echo "--> [SteamOS] 正在部署 Valve 原生 ARM64 Steam 客户端与 Proton 游戏兼容层..." && \
     (/usr/local/sbin/install-arm64-steam "${USERNAME}" || echo "--> [跳过] 离线构建环境中跳过网络下载") && \
-    mkdir -p /etc/skel/.local/share/Steam /etc/skel/.steam && \
-    (cp -r /home/${USERNAME}/.local/share/Steam/* /etc/skel/.local/share/Steam/ 2>/dev/null || true) && \
+    mkdir -p /etc/skel/.steam && \
     ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/steam && \
     ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/root
 

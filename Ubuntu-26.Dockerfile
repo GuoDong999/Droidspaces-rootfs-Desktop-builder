@@ -170,7 +170,6 @@ RUN /usr/local/sbin/install-droidspaces-usb-manager --user "${USERNAME}"
 RUN : > /etc/environment
 
 RUN cat >> /etc/environment <<'EOF'
-DISPLAY=:0
 STEAMOS=1
 STEAM_RUNTIME=1
 PROTON_USE_WOW64=1

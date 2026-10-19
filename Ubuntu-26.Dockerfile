@@ -426,31 +426,36 @@ RUN rm -f \
 
 
 # 预创建 Anland 5 socket 软链接与通信目录
-RUN mkdir -p /tmp/anland /data/local/tmp /run && \
-    ln -sf /run/display.sock /tmp/display_daemon.sock && \
-    ln -sf /run/display.sock /tmp/anland/display_daemon.sock && \
-    ln -sf /run/display.sock /data/local/tmp/display_daemon.sock
+RUN <<'EOF_RUN'
+mkdir -p /tmp/anland /data/local/tmp /run
+ln -sf /run/display.sock /tmp/display_daemon.sock
+ln -sf /run/display.sock /tmp/anland/display_daemon.sock
+ln -sf /run/display.sock /data/local/tmp/display_daemon.sock
 
 # 针对 Anland 5 高刷屏优化 KWin 合成器配置
-RUN mkdir -p /home/${USERNAME}/.config /etc/skel/.config && \
-    cat > /home/${USERNAME}/.config/kwinrc <<'EOF'
+mkdir -p "/home/${USERNAME}/.config" /etc/skel/.config
+cat > "/home/${USERNAME}/.config/kwinrc" <<'EOF'
 [Compositing]
 Enabled=true
 LatencyPolicy=High
 GLCore=true
 EOF
-RUN cp -f /home/${USERNAME}/.config/kwinrc /etc/skel/.config/kwinrc 2>/dev/null || true
+cp -f "/home/${USERNAME}/.config/kwinrc" /etc/skel/.config/kwinrc 2>/dev/null || true
+EOF_RUN
 
 # 部署 Valve 官方原生 ARM64 Steam 客户端与 ARM64 Proton 安装器
-RUN chmod +x /usr/local/sbin/install-arm64-steam && \
-    echo "--> [SteamOS] 正在部署 Valve 原生 ARM64 Steam 客户端与 Proton 游戏兼容层..." && \
-    (/usr/local/sbin/install-arm64-steam "${USERNAME}" || echo "--> [跳过] 离线构建环境中跳过网络下载") && \
-    mkdir -p /etc/skel/.steam && \
-    ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/steam && \
-    ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/root
+RUN <<'EOF_RUN'
+chmod +x /usr/local/sbin/install-arm64-steam
+echo "--> [SteamOS] 正在部署 Valve 原生 ARM64 Steam 客户端与 Proton 游戏兼容层..."
+/usr/local/sbin/install-arm64-steam "${USERNAME}" || echo "--> [跳过] 离线构建环境中跳过网络下载"
+mkdir -p /etc/skel/.steam
+ln -fns "/home/${USERNAME}/.local/share/Steam" /etc/skel/.steam/steam
+ln -fns "/home/${USERNAME}/.local/share/Steam" /etc/skel/.steam/root
+EOF_RUN
 
 # 创建掌机专属 Valve 原生 ARM64 Steam 极速封装器 (自动适配 Wayland 与 X11，直通 Adreno 840)
-RUN cat > /usr/local/bin/steam <<'EOF'
+RUN <<'EOF_RUN'
+cat > /usr/local/bin/steam <<'EOF'
 #!/usr/bin/env bash
 set -e
 
@@ -521,12 +526,15 @@ fi
 echo "--> [SteamOS] 错误：未找到 ARM64 原生客户端，请在终端执行 'install-arm64-steam' 安装！" >&2
 exit 1
 EOF
-RUN chmod +x /usr/local/bin/steam && \
-    ln -sf /usr/local/bin/steam /usr/local/bin/steamos-session
+chmod +x /usr/local/bin/steam
+ln -sf /usr/local/bin/steam /usr/local/bin/steamos-session
+EOF_RUN
 
 # 配置桌面图标、快捷方式与 Steam Deck Gamepad UI 自动启动
-RUN mkdir -p /usr/share/applications /home/${USERNAME}/Desktop /home/${USERNAME}/.config/autostart /etc/skel/Desktop /etc/skel/.config/autostart /etc/xdg/autostart && \
-    cat > /usr/share/applications/steam.desktop <<'EOF' && \
+RUN <<'EOF_RUN'
+mkdir -p /usr/share/applications "/home/${USERNAME}/Desktop" "/home/${USERNAME}/.config/autostart" /etc/skel/Desktop /etc/skel/.config/autostart /etc/xdg/autostart
+
+cat > /usr/share/applications/steam.desktop <<'EOF'
 [Desktop Entry]
 Name=Steam
 Comment=Application for managing and playing games on Steam
@@ -537,7 +545,8 @@ Type=Application
 Categories=Network;FileTransfer;Game;
 MimeType=x-scheme-handler/steam;x-scheme-handler/steamlink;
 EOF
-    cat > /usr/share/applications/steam-gamepadui.desktop <<'EOF' && \
+
+cat > /usr/share/applications/steam-gamepadui.desktop <<'EOF'
 [Desktop Entry]
 Name=Steam Deck Gamepad UI
 Comment=Start Steam in Handheld Big Picture Gamepad UI Mode
@@ -547,13 +556,15 @@ Terminal=false
 Type=Application
 Categories=Game;
 EOF
-    cp -f /usr/share/applications/steam*.desktop /home/${USERNAME}/Desktop/ && \
-    cp -f /usr/share/applications/steam-gamepadui.desktop /home/${USERNAME}/.config/autostart/ && \
-    cp -f /usr/share/applications/steam-gamepadui.desktop /etc/xdg/autostart/ && \
-    cp -f /usr/share/applications/steam*.desktop /etc/skel/Desktop/ 2>/dev/null || true && \
-    cp -f /usr/share/applications/steam-gamepadui.desktop /etc/skel/.config/autostart/ 2>/dev/null || true && \
-    chmod +x /home/${USERNAME}/Desktop/*.desktop 2>/dev/null || true && \
-    chown -R ${USERNAME}:${USERNAME} /home/${USERNAME}/Desktop /home/${USERNAME}/.config 2>/dev/null || true
+
+cp -f /usr/share/applications/steam*.desktop "/home/${USERNAME}/Desktop/"
+cp -f /usr/share/applications/steam-gamepadui.desktop "/home/${USERNAME}/.config/autostart/"
+cp -f /usr/share/applications/steam-gamepadui.desktop /etc/xdg/autostart/
+cp -f /usr/share/applications/steam*.desktop /etc/skel/Desktop/ 2>/dev/null || true
+cp -f /usr/share/applications/steam-gamepadui.desktop /etc/skel/.config/autostart/ 2>/dev/null || true
+chmod +x "/home/${USERNAME}/Desktop/"*.desktop 2>/dev/null || true
+chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/Desktop" "/home/${USERNAME}/.config" 2>/dev/null || true
+EOF_RUN
 
 FROM scratch AS export
 COPY --from=customizer / /

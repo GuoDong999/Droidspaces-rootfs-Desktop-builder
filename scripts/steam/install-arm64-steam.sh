@@ -76,6 +76,7 @@ done
 chmod -R a+x "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/linuxarm64" 2>/dev/null || true
 echo "$STEAM_CHANNEL" > "$STEAM_ROOT/package/beta"
 ln -sfn "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/steamrtarm32"
+ln -sfn "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/steamrt64"
 chmod +x "$STEAM_ROOT/steamrtarm64/steam" 2>/dev/null || true
 
 # 部署 .steam 标准软链接

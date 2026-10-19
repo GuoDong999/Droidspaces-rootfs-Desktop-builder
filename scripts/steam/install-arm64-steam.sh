@@ -63,25 +63,59 @@ while read -r block file sum; do
 done < "$WORK_DIR/parts"
 
 # 修复 Windows 反斜杠路径兼容
-find "$STEAM_ROOT" -depth -name '*\\*' 2>/dev/null | while read -r odd; do
-    fixed="${odd//\\//}"
-    mkdir -p "$(dirname "$fixed")"
-    if [ -d "$odd" ]; then
-        cp -a "$odd/." "$fixed/" && rm -rf "$odd"
-    else
-        mv -f "$odd" "$fixed"
+python3 -c "
+import os, shutil
+
+root = '''$STEAM_ROOT'''
+for dirpath, dirnames, filenames in os.walk(root, topdown=False):
+    for name in filenames + dirnames:
+        if '\\\\' in name:
+            src = os.path.join(dirpath, name)
+            dst = os.path.join(dirpath, name.replace('\\\\', '/'))
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            if os.path.isdir(src):
+                if os.path.exists(dst):
+                    for item in os.listdir(src):
+                        shutil.move(os.path.join(src, item), os.path.join(dst, item))
+                    shutil.rmtree(src, ignore_errors=True)
+                else:
+                    shutil.move(src, dst)
+            else:
+                shutil.move(src, dst)
+" 2>/dev/null || true
+
+chmod -R a+x "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/steamrt64" "$STEAM_ROOT/linuxarm64" 2>/dev/null || true
+echo "$STEAM_CHANNEL" > "$STEAM_ROOT/package/beta"
+chmod +x "$STEAM_ROOT/steamrtarm64/steam" "$STEAM_ROOT/steamrt64/steam" "$STEAM_ROOT/steam.sh" 2>/dev/null || true
+
+# 目录与运行时互通
+mkdir -p "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/steamrt64" "$STEAM_ROOT/ubuntu12_32"
+ln -sfn "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/steamrtarm32"
+ln -sfn "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/ubuntu12_64"
+
+# 根目录与 legacy 关键动态库软链接（解决 Failed to load steamui.so / vgui2_s.so 报错）
+for lib in steamui.so vgui2_s.so steamclient.so crashhandler.so filesystem_stdio.so libtier0_s.so libvstdlib_s.so chromehtml.so friendsui.so; do
+    target_file=""
+    if [ -f "$STEAM_ROOT/steamrtarm64/$lib" ]; then
+        target_file="$STEAM_ROOT/steamrtarm64/$lib"
+    elif [ -f "$STEAM_ROOT/steamrt64/$lib" ]; then
+        target_file="$STEAM_ROOT/steamrt64/$lib"
+    fi
+    if [ -n "$target_file" ]; then
+        ln -sf "$target_file" "$STEAM_ROOT/$lib"
+        ln -sf "$target_file" "$STEAM_ROOT/ubuntu12_32/$lib"
     fi
 done
 
-chmod -R a+x "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/linuxarm64" 2>/dev/null || true
-echo "$STEAM_CHANNEL" > "$STEAM_ROOT/package/beta"
-ln -sfn "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/steamrtarm32"
-ln -sfn "$STEAM_ROOT/steamrtarm64" "$STEAM_ROOT/steamrt64"
-chmod +x "$STEAM_ROOT/steamrtarm64/steam" 2>/dev/null || true
+# 如果 steamrt64 没有 steam 二进制，链接到 steamrtarm64/steam
+if [ ! -f "$STEAM_ROOT/steamrt64/steam" ] && [ -f "$STEAM_ROOT/steamrtarm64/steam" ]; then
+    ln -sf "$STEAM_ROOT/steamrtarm64/steam" "$STEAM_ROOT/steamrt64/steam"
+fi
 
 # 部署 .steam 标准软链接
 ln -sfn "$STEAM_ROOT" "${TARGET_HOME}/.steam/root"
 ln -sfn "$STEAM_ROOT" "${TARGET_HOME}/.steam/steam"
+ln -sfn "$STEAM_ROOT/steamrtarm64" "${TARGET_HOME}/.steam/bin"
 ln -sfn "$STEAM_ROOT/steamrtarm64" "${TARGET_HOME}/.steam/bin64"
 ln -sfn "$STEAM_ROOT/steamrtarm64" "${TARGET_HOME}/.steam/binarm64"
 ln -sfn "$STEAM_ROOT/linux64" "${TARGET_HOME}/.steam/sdk64"

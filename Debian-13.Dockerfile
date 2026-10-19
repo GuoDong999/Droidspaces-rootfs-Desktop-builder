@@ -89,7 +89,7 @@ RUN apt-get update && \
     # 用于系统监控的 procps 进程工具
     procps \
     # 核心内核模块支持
-    kmod tzdata tar mesa-utils vulkan-tools pulseaudio-utils zenity cabextract libevdev2 evtest pciutils usbutils xdg-utils xdg-user-dirs strace binutils libnss3 libnspr4 libasound2* libpulse0 libxss1 libxtst6 libxrandr2 libxcomposite1 libxcursor1 libxdamage1 libxi6 libva2 libopenal1 libxinerama1 libsm6 libice6 libavif16 libnm0 libpipewire-0.3-0 && \
+    kmod tzdata tar mesa-utils vulkan-tools pulseaudio-utils zenity cabextract libevdev2 evtest pciutils usbutils xdg-utils xdg-user-dirs strace binutils libnss3 libnspr4 libasound2* libpulse0 libxss1 libxtst6 libxrandr2 libxcomposite1 libxcursor1 libxdamage1 libxi6 libva2 libopenal1 libxinerama1 libsm6 libice6 libavif16 libnm0 libpipewire-0.3-0 x11-xserver-utils libfontconfig1 libfreetype6 libgl1 libudev1 && \
     (apt-get install -y libgtk2.0-0t64 || apt-get install -y libgtk2.0-0 || true) && \
     /usr/local/sbin/install-desktop "$DESKTOP" && \
     ############################################## Anland Wayland 支持 ################################################
@@ -159,7 +159,6 @@ RUN : > /etc/environment
 
 RUN cat >> /etc/environment <<'EOF'
 STEAMOS=1
-STEAM_RUNTIME=1
 PROTON_USE_WOW64=1
 PROTON_USE_NTSYNC=1
 EOF
@@ -519,7 +518,8 @@ export GALLIUM_DRIVER="kgsl"
 export FD_FORCE_KGSL=1
 
 export STEAMOS=1
-export STEAM_RUNTIME=1
+# 清理可能干扰 pressure-vessel / SteamRT3 初始化的外部变量
+unset STEAM_RUNTIME
 export DBUS_FATAL_WARNINGS=0
 export MESA_VK_WSI_PRESENT_MODE=mailbox
 
@@ -536,21 +536,44 @@ CEF_FLAGS=(
 )
 
 STEAM_ROOT="${HOME}/.local/share/Steam"
-if [ ! -x "$STEAM_ROOT/steamrtarm64/steam" ]; then
+if [ ! -x "$STEAM_ROOT/steamrtarm64/steam" ] && [ ! -x "$STEAM_ROOT/steamrt64/steam" ] && [ ! -x "$STEAM_ROOT/steam.sh" ]; then
     echo "--> [SteamOS] 正在部署 Valve 官方 ARM64 原生 Steam 客户端与 Proton 游戏兼容层..."
     /usr/local/sbin/install-arm64-steam || true
 fi
 
+# 定位实际 Steam 可执行入口
+STEAM_BIN=""
 if [ -x "$STEAM_ROOT/steamrtarm64/steam" ]; then
-    cd "$STEAM_ROOT/steamrtarm64"
-    export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+    STEAM_BIN="$STEAM_ROOT/steamrtarm64/steam"
+elif [ -x "$STEAM_ROOT/steamrt64/steam" ]; then
+    STEAM_BIN="$STEAM_ROOT/steamrt64/steam"
+elif [ -x "$STEAM_ROOT/steam.sh" ]; then
+    STEAM_BIN="$STEAM_ROOT/steam.sh"
+fi
+
+if [ -n "$STEAM_BIN" ]; then
+    cd "$STEAM_ROOT"
+    export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/steamrt64:$STEAM_ROOT/steamrtarm64/panorama:$STEAM_ROOT/ubuntu12_32:$STEAM_ROOT${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+    # 默认桌面模式启动，仅在传入参数时透传（桌面快捷方式已提供专属 Gamepad UI 入口）
     if [ $# -eq 0 ]; then
-        set -- "${CEF_FLAGS[@]}" -gamepadui -fullscreen -steamos3
+        ARGS=("${CEF_FLAGS[@]}")
     else
-        set -- "${CEF_FLAGS[@]}" "$@"
+        ARGS=("${CEF_FLAGS[@]}" "$@")
     fi
+
     echo "--> [SteamOS] 启动 Valve 原生 ARM64 Steam 客户端..."
-    exec "$STEAM_ROOT/steamrtarm64/steam" "$@"
+    while true; do
+        "$STEAM_BIN" "${ARGS[@]}"
+        STATUS=$?
+        # 处理 Steam 客户端自更新/自重启退出码 (MAGIC_RESTART_EXITCODE=42)
+        if [ $STATUS -eq 42 ]; then
+            echo "--> [SteamOS] Steam 正在更新并自动重启 (code 42)..."
+            sleep 1
+            continue
+        fi
+        exit $STATUS
+    done
 fi
 
 echo "--> [SteamOS] 错误：未找到 ARM64 原生客户端，请在终端执行 'install-arm64-steam' 安装！" >&2

@@ -89,7 +89,8 @@ RUN apt-get update && \
     # 用于系统监控的 procps 进程工具
     procps \
     # 核心内核模块支持
-    kmod tzdata tar mesa-utils vulkan-tools pulseaudio-utils zenity cabextract libevdev2 evtest pciutils usbutils xdg-utils xdg-user-dirs strace binutils && \
+    kmod tzdata tar mesa-utils vulkan-tools pulseaudio-utils zenity cabextract libevdev2 evtest pciutils usbutils xdg-utils xdg-user-dirs strace binutils libnss3 libnspr4 libasound2* libpulse0 libxss1 libxtst6 libxrandr2 libxcomposite1 libxcursor1 libxdamage1 libxi6 libva2 && \
+    (apt-get install -y libgtk2.0-0t64 || apt-get install -y libgtk2.0-0 || true) && \
     /usr/local/sbin/install-desktop "$DESKTOP" && \
     ############################################## Anland Wayland 支持 ################################################
     if [ "$DISPLAY_BACKEND" = "anland-wayland" ]; then \
@@ -484,11 +485,22 @@ if [ -n "${WAYLAND_DISPLAY:-}" ] || [ -S "$XDG_RUNTIME_DIR/wayland-0" ]; then
     export SDL_VIDEODRIVER="wayland,x11"
     OZONE="wayland"
 else
-    export DISPLAY="${DISPLAY:-:5}"
     export SDL_VIDEODRIVER="x11"
     export GDK_BACKEND="x11"
     export QT_QPA_PLATFORM="xcb"
     OZONE="x11"
+fi
+
+# 确保 Xwayland/X11 的 DISPLAY 始终有效 (Steam 客户端更新窗口为传统 GTK2/X11 程序，必须通过 XOpenDisplay 渲染)
+if [ -z "${DISPLAY:-}" ]; then
+    for x in /tmp/.X11-unix/X*; do
+        if [ -S "$x" ]; then
+            num="${x##*/X}"
+            export DISPLAY=":$num"
+            break
+        fi
+    done
+    export DISPLAY="${DISPLAY:-:0}"
 fi
 
 export PULSE_SERVER="${PULSE_SERVER:-unix:/tmp/.pulse-socket}"
@@ -526,6 +538,7 @@ if [ ! -x "$STEAM_ROOT/steamrtarm64/steam" ]; then
 fi
 
 if [ -x "$STEAM_ROOT/steamrtarm64/steam" ]; then
+    cd "$STEAM_ROOT/steamrtarm64"
     export LD_LIBRARY_PATH="$STEAM_ROOT/steamrtarm64:$STEAM_ROOT/steamrtarm64/panorama${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
     if [ $# -eq 0 ]; then
         set -- "${CEF_FLAGS[@]}" -gamepadui -fullscreen -steamos3

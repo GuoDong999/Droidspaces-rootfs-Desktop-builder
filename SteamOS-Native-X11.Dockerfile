@@ -49,6 +49,7 @@ COPY scripts/tui/install-anland-mango.sh /usr/local/sbin/install-anland-mango
 COPY scripts/tui/install-anland-denial.sh /usr/local/sbin/install-anland-denial
 COPY scripts/install-anland-desktop.sh /usr/local/sbin/install-anland-desktop
 COPY scripts/tui/install-mesa.sh /usr/local/sbin/install-mesa
+COPY scripts/tui/install-hangover-wine.sh /usr/local/sbin/install-hangover-wine
 COPY scripts/tui/install-winefonts.sh /usr/local/sbin/install-winefonts
 COPY scripts/tui/droidspaces-tui.sh /usr/local/bin/droidspaces-tui
 COPY scripts/install-desktop.sh /usr/local/sbin/install-desktop
@@ -197,6 +198,19 @@ fi
 EOF
 RUN chmod +x /usr/local/sbin/install-ge-proton
 
+# 预置 Steam 客户端核心解压与 64 位 SteamRT3 配置
+RUN mkdir -p /home/${USERNAME}/.local/share/Steam/package /home/${USERNAME}/.local/share/Steam/config /home/${USERNAME}/.local/share/Steam/compatibilitytools.d && \
+    mkdir -p /home/${USERNAME}/.steam && \
+    (tar -xf /usr/lib/steam/bootstraplinux_ubuntu12_32.tar.xz -C /home/${USERNAME}/.local/share/Steam/ 2>/dev/null || true) && \
+    touch /home/${USERNAME}/.local/share/Steam/.steam-enable-steamrt64-client && \
+    echo "publicbeta" > /home/${USERNAME}/.local/share/Steam/package/beta && \
+    ln -fns /home/${USERNAME}/.local/share/Steam /home/${USERNAME}/.steam/steam && \
+    ln -fns /home/${USERNAME}/.local/share/Steam /home/${USERNAME}/.steam/root && \
+    mkdir -p /etc/skel/.local/share/Steam /etc/skel/.steam && \
+    (cp -r /home/${USERNAME}/.local/share/Steam/* /etc/skel/.local/share/Steam/ 2>/dev/null || true) && \
+    ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/steam && \
+    ln -fns /home/${USERNAME}/.local/share/Steam /etc/skel/.steam/root
+
 # 创建掌机专属 Linux 原生 Steam 封装器与开机直启脚本
 RUN cat > /usr/local/bin/steam <<'EOF'
 #!/usr/bin/env bash
@@ -224,7 +238,7 @@ export PROTON_USE_WOW64=1
 export PROTON_USE_NTSYNC=1
 export DBUS_FATAL_WARNINGS=0
 
-# Box64 转译引擎优化环境变量
+# Box64 转译引擎优化环境变量 (严禁设置 BOX64_EMULATED_LIBS 包含 libGL，否则会导致硬件驱动丢失报段错误)
 export BOX64_BINFMT=1
 export BOX64_NOBANNER=1
 export BOX64_DYNAREC=1
@@ -232,8 +246,32 @@ export BOX64_DYNAREC_WAIT=1
 export BOX64_DYNAREC_FASTNAN=1
 export BOX64_DYNAREC_FASTROUND=1
 export BOX64_DYNAREC_X87DOUBLE=0
-export BOX64_STEAM_VULKAN=1
-export BOX64_EMULATED_LIBS="libstdc++.so.6:libGL.so.1"
+export BOX64_DYNAREC_STRONGMEM=2
+export BOX64_DYNAREC_BIGBLOCK=3
+export BOX64_NOGTK=1
+export BOX64_NOSANDBOX=1
+export BOX64_INPROCESSGPU=1
+
+# 容器环境下的 Chromium / CEF 沙箱兼容参数
+CEF_FLAGS=(
+    -no-cef-sandbox
+    -cef-disable-seccomp-sandbox
+    -cef-disable-sandbox
+    -cef-disable-dev-shm-usage
+    --no-sandbox
+    --no-zygote
+    --disable-gpu-sandbox
+    -cef-ignore-gpu-blocklist
+    -cef-enable-gpu-rasterization
+)
+
+# 确保 64 位 SteamRT3 标记存在
+STEAM_DIR="${HOME}/.local/share/Steam"
+mkdir -p "$STEAM_DIR/package" 2>/dev/null || true
+touch "$STEAM_DIR/.steam-enable-steamrt64-client" 2>/dev/null || true
+if [ ! -f "$STEAM_DIR/package/beta" ]; then
+    echo "publicbeta" > "$STEAM_DIR/package/beta" 2>/dev/null || true
+fi
 
 # 检查原生 Steam 核心客户端
 REAL_STEAM="/usr/bin/steam"
@@ -241,9 +279,11 @@ if [ ! -x "$REAL_STEAM" ] && [ -x /usr/lib/steam/bin_steam.sh ]; then
     REAL_STEAM="/usr/lib/steam/bin_steam.sh"
 fi
 
-# 参数透传：默认开启 Steam Deck 掌机全屏大屏模式
+# 参数透传：默认带上全套 CEF 沙箱保护参数
 if [ $# -eq 0 ]; then
-    set -- -gamepadui -fullscreen -steamos3
+    set -- "${CEF_FLAGS[@]}" -gamepadui -fullscreen -steamos3
+else
+    set -- "${CEF_FLAGS[@]}" "$@"
 fi
 
 echo "--> [SteamOS] 正在启动 Linux 原生 Steam 掌机模式 (X11)..."

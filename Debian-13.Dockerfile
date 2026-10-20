@@ -526,12 +526,9 @@ export MESA_VK_WSI_PRESENT_MODE=mailbox
 CEF_FLAGS=(
     -no-cef-sandbox
     -cef-disable-sandbox
-    -cef-disable-gpu
-    --disable-gpu
-    --disable-gpu-compositing
     --no-sandbox
     --no-zygote
-    --disable-gpu-sandbox
+    --enable-gpu-rasterization
     "-cef-ozone-platform=${OZONE}"
 )
 

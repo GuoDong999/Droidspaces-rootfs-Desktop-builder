@@ -127,7 +127,9 @@ if [[ "$desktop" == kde ]]; then
     install -d -m 0755 "$rootfs/home/$username/.config"
     cat > "$rootfs/home/$username/.config/kwinrc" <<'EOF'
 [Compositing]
-Enabled=false
+Enabled=true
+LatencyPolicy=High
+GLCore=true
 EOF
 fi
 
